@@ -1,22 +1,19 @@
 # soil_modeling
 
-## Soil porosity by USDA texture class and bulk density (Rosetta)
+Estimating soil water-holding properties for every USDA texture class from pedotransfer
+functions, with interactive HoloViews/Bokeh visualizations. All notebooks live in
+[notebooks/](notebooks/).
 
-[rosetta_porosity_by_texture.ipynb](rosetta_porosity_by_texture.ipynb) uses the
-[Rosetta](https://github.com/usda-ars-ussl/rosetta-soil) pedotransfer functions to
-estimate, for every USDA soil texture class (using representative *median* sand/silt/clay
-values) and for bulk densities from 0.8 to 2.0 g/cm³ in 0.1 steps:
+## Notebooks
 
-- **Total porosity** — saturated volumetric water content θₛ
-- **Field-capacity porosity** — volumetric water content at 33 kPa (330 cm suction)
-- **Permanent-wilting-point porosity** — volumetric water content at 1500 kPa (15000 cm suction)
-- **Available water capacity** — field capacity minus wilting point
+| Notebook | Purpose |
+| --- | --- |
+| [notebooks/1_rosetta_porosity_by_texture.ipynb](notebooks/1_rosetta_porosity_by_texture.ipynb) | **ROSETTA texture × bulk-density baseline** — total porosity, field capacity, wilting point, available & drainable water for each texture class across bulk densities 0.8–2.0 g/cm³. Writes `rosetta_porosity_by_texture.csv`. |
+| [notebooks/2_organic_matter_water_holding.ipynb](notebooks/2_organic_matter_water_holding.ipynb) | **Organic-matter effects** — layers SOM/SOC sensitivity on top, two ways: a ROSETTA + Minasny–McBratney (2018) blend, and Saxton–Rawls (2006). **Reads the CSV from the first notebook.** |
 
-Each output table also carries an **NRCS hydrologic soil group** (A–D) column, inferred from
-texture class (see caveat below).
-
-Output is a 156-row pandas DataFrame (12 texture classes × 13 bulk densities), also written
-to [rosetta_porosity_by_texture.csv](rosetta_porosity_by_texture.csv).
+**Run order:** execute `1_rosetta_porosity_by_texture.ipynb` first (it generates
+`rosetta_porosity_by_texture.csv`), then `2_organic_matter_water_holding.ipynb`, which loads that
+CSV for the mineral baseline.
 
 ### Environment (pixi)
 
@@ -24,16 +21,37 @@ Built with [pixi](https://pixi.sh) — see [pixi.toml](pixi.toml).
 
 ```bash
 pixi install
-pixi run jupyter lab    # open and run rosetta_porosity_by_texture.ipynb
+pixi run jupyter lab    # open notebooks/ and run the two notebooks in order
 ```
 
-The notebook is paired with a [jupytext](https://jupytext.readthedocs.io/) `py:percent`
-script, [rosetta_porosity_by_texture.py](rosetta_porosity_by_texture.py), which is the
-diff-friendly version to review and commit. Editing either file and running
-`pixi run jupytext --sync rosetta_porosity_by_texture.py` keeps the two in sync (the `.py`
-holds the code/markdown; the `.ipynb` holds outputs).
+Each notebook is paired with a [jupytext](https://jupytext.readthedocs.io/) `py:percent`
+script (`*.py` alongside the `*.ipynb`) — the diff-friendly version to review and commit. After
+editing either file, run e.g. `pixi run jupytext --sync notebooks/<name>.py` to keep the pair in
+sync (the `.py` holds code/markdown; the `.ipynb` holds outputs). Plots are embedded as
+self-contained HoloViews/Bokeh output, so the saved notebooks are interactive without a live
+kernel.
 
-### Key methodologies
+---
+
+## Notebook 1 — ROSETTA porosity by texture and bulk density
+
+Uses the [Rosetta](https://github.com/usda-ars-ussl/rosetta-soil) pedotransfer functions to
+estimate, for every USDA soil texture class (using representative *median* sand/silt/clay values)
+and for bulk densities from 0.8 to 2.0 g/cm³ in 0.1 steps:
+
+- **Total porosity** — saturated volumetric water content θₛ
+- **Field-capacity porosity** — volumetric water content at 33 kPa (330 cm suction)
+- **Permanent-wilting-point porosity** — volumetric water content at 1500 kPa (15000 cm suction)
+- **Available water capacity** — field capacity minus wilting point
+- **Drainable water** — saturation minus field capacity (shown in the band plots)
+
+Each output table also carries an **NRCS hydrologic soil group** (A–D) column, inferred from
+texture class (see caveat below). Output is a 156-row DataFrame (12 texture classes × 13 bulk
+densities), written to `notebooks/rosetta_porosity_by_texture.csv`. Sections 6–8 add interactive
+plots (porosity/FC/WP vs. BD; a stacked-bar partition with a BD slider; and a transposed
+FAO-style line/area diagram in inches of water per foot of soil).
+
+### Key methodologies (baseline)
 
 - **Rosetta version 3** (2017 recalibration), called with input columns
   `[sand %, silt %, clay %, bulk_density]` → model code 3. The package returns **linear**
@@ -78,9 +96,46 @@ holds the code/markdown; the `.ipynb` holds outputs).
 θₛ ≥ field capacity ≥ wilting point holds for every row, and per-class values track the
 published [ROSETTA centroid reference](https://ncss-tech.github.io/AQP/aqp/water-retention-curves.html).
 
-### References
+---
+
+## Notebook 2 — Organic-matter effects on water holding
+
+ROSETTA has no organic-matter input — it only "sees" SOM through bulk density. This notebook adds
+the organic-matter dimension on top of the ROSETTA baseline, with **available water** (FC − WP,
+plant-available) and **drainable water** (SAT − FC, the fast-draining pore space relevant to
+**stormwater** storage/infiltration) given equal billing.
+
+- **Section 1 — ROSETTA + Minasny & McBratney (2018) blend (recommended).** Keeps ROSETTA's
+  texture + bulk-density skill for the mineral baseline, then adds M&M's empirical organic-carbon
+  increments (Table 2 ΔWP / ΔAWC / ΔSAT slopes, by coarse/medium/fine texture group). We apply the
+  WP, AWC and SAT slopes and derive FC = WP + AWC, so the blend reproduces M&M's headline AWC
+  sensitivity exactly. **Two sliders — mineral bulk density and organic carbon** — drive the
+  FAO-style diagram, plus dedicated AWC- and drainable-vs-OC line plots.
+- **Section 2 — Saxton & Rawls (2006).** An independent, self-contained PTF taking sand/clay/OM
+  directly (calibrated for OM ≤ 8 %; higher OM flagged as extrapolation), with AWC and drainable
+  line plots and an OM-slider diagram. **§2.1 validates** its OC sensitivity against M&M and shows
+  it runs systematically lower — and negative for clays (a known Rawls-lineage behaviour) — which
+  is why Section 1 builds the blend on the M&M increments rather than Saxton–Rawls.
+
+### Key methodologies (organic matter)
+
+- **M&M additive increments** (per +1 % organic carbon = +10 g C kg⁻¹, mm 100 mm⁻¹ ≡ vol %):
+  coarse ΔWP/ΔAWC/ΔSAT = 0.86/1.94/4.59; medium 0.68/1.79/3.59; fine 0.54/1.41/3.23. Note
+  1.16 mm 100 mm⁻¹ = 0.0116 cm³/cm³, so the per-1 %-OC AWC effect is ~0.01–0.02 cm³/cm³ — modest,
+  largest in sands, smallest/negative in clays, while saturation (and drainable water) rises more.
+- **Baseline & sliders** — the OC = 0 curve is ROSETTA at the selected mineral bulk density. The
+  BD and OC sliders are *independent what-if axes*; since organic matter physically lowers bulk
+  density, the realistic region runs low-BD ↔ high-OC, and the extreme low-BD + high-OC corner
+  double-counts porosity. The modifier is linear (M&M found diminishing returns), so it may
+  overstate gains at high OC; OM ≈ OC / 0.58 (van Bemmelen).
+
+---
+
+## References
 
 - Zhang & Schaap (2017), [rosetta-soil](https://github.com/usda-ars-ussl/rosetta-soil)
 - van Genuchten (1980), *SSSAJ* 44:892–898
 - Levi (2017), [Modified Centroid for Estimating Sand, Silt, and Clay from Soil Texture Class](https://acsess.onlinelibrary.wiley.com/doi/abs/10.2136/sssaj2016.09.0301), *SSSAJ*
 - USDA-NRCS, [National Engineering Handbook, Part 630, Chapter 7 — Hydrologic Soil Groups](https://directives.nrcs.usda.gov/sites/default/files2/1712930597/11905.pdf)
+- Saxton & Rawls (2006), [Soil Water Characteristic Estimates by Texture and Organic Matter for Hydrologic Solutions](https://www.researchgate.net/publication/43257423_Soil_Water_Characteristic_Estimates_by_Texture_and_Organic_Matter_for_Hydrologic_Solutions), *SSSAJ* 70:1569–1578
+- Minasny & McBratney (2018), [Limited effect of organic matter on soil available water capacity](https://bsssjournals.onlinelibrary.wiley.com/doi/abs/10.1111/ejss.12475), *EJSS* 69:39–47
