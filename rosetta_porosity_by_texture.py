@@ -6,9 +6,9 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.3
+#       jupytext_version: 1.19.2
 #   kernelspec:
-#     display_name: Python 3 (ipykernel)
+#     display_name: default
 #     language: python
 #     name: python3
 # ---
@@ -229,4 +229,76 @@ result.hvplot.line(
     ylabel="Wilting-point porosity at 1500 kPa (cm³/cm³)",
     title="Rosetta wilting-point porosity vs. bulk density by USDA texture class",
     **plot_opts,
+)
+
+# %% [markdown]
+# ## 7. Soil water partitioning by texture
+#
+# Horizontal stacked bars (one per texture class, in the order defined above) partitioning the pore space into three volumetric water states, in the style of the [AQP water-retention-curve plots](https://ncss-tech.github.io/AQP/aqp/water-retention-curves.html):
+#
+# | Band | Range | Color |
+# | --- | --- | --- |
+# | **Unavailable water** | 0 → wilting point (1500 kPa) | orange |
+# | **Available water** | wilting point → field capacity (33 kPa) | green |
+# | **Drainable water** | field capacity → total porosity (saturation) | blue |
+#
+# The three bands sum to total porosity θₛ. Use the **bulk-density slider** at the bottom to vary BD across the 0.8–2.0 g/cm³ range; the selected value is shown in the plot title.
+
+# %%
+import holoviews as hv
+
+# Place HoloViews widgets (the bulk-density slider) along the bottom of the plot.
+hv.output(widget_location="bottom")
+
+# Partition pore space into three water states for every bulk density, then plot as
+# horizontal stacked bars (AQP water-retention-curve style) with a bulk-density slider.
+part = result.copy()
+part["unavailable"] = part["wilting_point_porosity"]                          # 0 -> PWP
+part["available"] = part["available_water_capacity"]                          # PWP -> FC
+part["drainable"] = part["total_porosity"] - part["field_capacity_porosity"]  # FC -> saturation
+
+# y-axis label: texture class with its hydrologic soil group in parentheses, e.g. "sand (A)"
+part["texture_label"] = part["texture_class"] + " (" + part["hydrologic_soil_group"] + ")"
+
+water_states = ["unavailable", "available", "drainable"]
+state_colors = ["orange", "green", "blue"]
+label_order = [f"{cls} ({HYDROLOGIC_SOIL_GROUP[cls]})" for cls in TEXTURE_CLASSES]  # sand ... clay
+
+part_long = part.melt(
+    id_vars=["texture_label", "bulk_density_g_cm3"],
+    value_vars=water_states,
+    var_name="water_state",
+    value_name="volumetric_fraction",
+)
+# reverse texture order so sand plots at the TOP of the horizontal (inverted) axis
+part_long["texture_label"] = pd.Categorical(
+    part_long["texture_label"], categories=label_order[::-1], ordered=True
+)
+part_long["water_state"] = pd.Categorical(
+    part_long["water_state"], categories=water_states, ordered=True
+)
+part_long = part_long.sort_values(["bulk_density_g_cm3", "texture_label", "water_state"])
+
+# groupby -> bulk-density slider; dynamic=False embeds every frame so the slider works
+# in the saved/exported notebook without a live kernel. {dimensions} interpolates the
+# selected slider value into the title, so it updates as the slider moves.
+hmap = part_long.hvplot.barh(
+    x="texture_label",
+    y="volumetric_fraction",
+    by="water_state",
+    groupby="bulk_density_g_cm3",
+    dynamic=False,
+    stacked=True,
+    color=state_colors,
+    ylim=(0, 0.7),  # fixed value axis so bars don't rescale while sliding
+    xlabel="texture class (hydrologic soil group)",
+    ylabel="volumetric water content (cm³/cm³)",
+    title="Soil water partitioning by texture (Rosetta) — {dimensions}",
+    width=750,
+    height=550,
+    legend="top_right",
+)
+# readable slider/title label + consistent one-decimal bulk density
+hmap.redim(
+    bulk_density_g_cm3=hv.Dimension("Bulk density (g/cm³)", value_format=lambda v: f"{v:.1f}")
 )

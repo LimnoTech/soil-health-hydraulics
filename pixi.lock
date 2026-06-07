@@ -62,6 +62,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/ipykernel-7.2.0-pyh5552912_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/ipython-9.14.1-pyh53cf698_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/ipython_pygments_lexers-1.1.1-pyhd8ed1ab_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/ipywidgets-8.1.8-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/isoduration-20.11.0-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/jedi-0.19.2-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/jinja2-3.1.6-pyhcf101f3_1.conda
@@ -71,6 +72,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/jsonschema-specifications-2025.9.1-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/jsonschema-with-format-nongpl-4.26.0-hcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/jupyter-lsp-2.3.1-pyhcf101f3_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/jupyter_bokeh-4.0.5-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/jupyter_client-8.9.0-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/jupyter_core-5.9.1-pyhc90fa1f_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/jupyter_events-0.12.1-pyhcf101f3_0.conda
@@ -79,6 +81,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/jupyterlab-4.5.8-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/jupyterlab_pygments-0.3.0-pyhd8ed1ab_2.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/jupyterlab_server-2.28.0-pyhcf101f3_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/jupyterlab_widgets-3.0.16-pyhcf101f3_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/jupytext-1.19.3-pyhbbac1ac_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/kiwisolver-1.5.0-py314hf8a3a22_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/krb5-1.22.2-h385eeb1_0.conda
@@ -202,6 +205,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/webcolors-25.10.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/webencodings-0.5.1-pyhd8ed1ab_3.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/websocket-client-1.9.0-pyhd8ed1ab_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/widgetsnbextension-4.0.15-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/xorg-libxau-1.0.12-hc919400_1.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/xorg-libxdmcp-1.1.5-hc919400_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/xyzservices-2026.3.0-pyhd8ed1ab_0.conda
@@ -927,6 +931,22 @@ packages:
   - pkg:pypi/ipython-pygments-lexers?source=hash-mapping
   size: 13993
   timestamp: 1737123723464
+- conda: https://conda.anaconda.org/conda-forge/noarch/ipywidgets-8.1.8-pyhd8ed1ab_0.conda
+  sha256: 6bb58afb7eabc8b4ac0c7e92707fb498313cc0164cf04e7ba1090dbf49af514b
+  md5: d68e3f70d1f068f1b66d94822fdc644e
+  depends:
+  - comm >=0.1.3
+  - ipython >=6.1.0
+  - jupyterlab_widgets >=3.0.15,<3.1.0
+  - python >=3.10
+  - traitlets >=4.3.1
+  - widgetsnbextension >=4.0.14,<4.1.0
+  license: BSD-3-Clause
+  license_family: BSD
+  purls:
+  - pkg:pypi/ipywidgets?source=hash-mapping
+  size: 114376
+  timestamp: 1762040524661
 - conda: https://conda.anaconda.org/conda-forge/noarch/isoduration-20.11.0-pyhd8ed1ab_1.conda
   sha256: 08e838d29c134a7684bca0468401d26840f41c92267c4126d7b43a6b533b0aed
   md5: 0b0154421989637d424ccf0f104be51a
@@ -1048,6 +1068,21 @@ packages:
   - pkg:pypi/jupyter-lsp?source=hash-mapping
   size: 61633
   timestamp: 1775136333147
+- conda: https://conda.anaconda.org/conda-forge/noarch/jupyter_bokeh-4.0.5-pyhd8ed1ab_1.conda
+  sha256: 6a0dc91d7a93f3afba5f1ad224603986fc80df1e41c87ba8c52fb6c1dd96e958
+  md5: ffaa7f642a00edf0be1bb3ff7306cc52
+  depends:
+  - bokeh 3.*
+  - ipywidgets 8.*
+  - python >=3.9
+  constrains:
+  - jupyterlab 4.*
+  license: BSD-3-Clause
+  license_family: BSD
+  purls:
+  - pkg:pypi/jupyter-bokeh?source=hash-mapping
+  size: 76539
+  timestamp: 1734648716202
 - conda: https://conda.anaconda.org/conda-forge/noarch/jupyter_client-8.9.0-pyhcf101f3_0.conda
   sha256: 5341cc66792399cfdf9191dec437b09f59f199d39ce8dbd032a292dcb84a0943
   md5: 3461dad033b573b208d9401f305452e0
@@ -1205,6 +1240,20 @@ packages:
   - pkg:pypi/jupyterlab-server?source=hash-mapping
   size: 51621
   timestamp: 1761145478692
+- conda: https://conda.anaconda.org/conda-forge/noarch/jupyterlab_widgets-3.0.16-pyhcf101f3_1.conda
+  sha256: 5c03de243d7ae6247f39a402f4785d95e61c3be79ef18738e8f17155585d31a8
+  md5: dbf8b81974504fa51d34e436ca7ef389
+  depends:
+  - python >=3.10
+  - python
+  constrains:
+  - jupyterlab >=3,<5
+  license: BSD-3-Clause
+  license_family: BSD
+  purls:
+  - pkg:pypi/jupyterlab-widgets?source=hash-mapping
+  size: 216779
+  timestamp: 1762267481404
 - conda: https://conda.anaconda.org/conda-forge/noarch/jupytext-1.19.3-pyhbbac1ac_0.conda
   sha256: ab8d4476cc45a92f2db77b0b2009c4a591f30f424a27133bec110ce7d5438122
   md5: 0838e0aa1b1b51d71998c09547455c76
@@ -2854,6 +2903,17 @@ packages:
   - pkg:pypi/websocket-client?source=hash-mapping
   size: 61391
   timestamp: 1759928175142
+- conda: https://conda.anaconda.org/conda-forge/noarch/widgetsnbextension-4.0.15-pyhd8ed1ab_0.conda
+  sha256: 826af5e2c09e5e45361fa19168f46ff524e7a766022615678c3a670c45895d9a
+  md5: dc257b7e7cad9b79c1dfba194e92297b
+  depends:
+  - python >=3.10
+  license: BSD-3-Clause
+  license_family: BSD
+  purls:
+  - pkg:pypi/widgetsnbextension?source=hash-mapping
+  size: 889195
+  timestamp: 1762040404362
 - conda: https://conda.anaconda.org/conda-forge/osx-arm64/xorg-libxau-1.0.12-hc919400_1.conda
   sha256: adae11db0f66f86156569415ed79cda75b2dbf4bea48d1577831db701438164f
   md5: 78b548eed8227a689f93775d5d23ae09
