@@ -302,3 +302,76 @@ hmap = part_long.hvplot.barh(
 hmap.redim(
     bulk_density_g_cm3=hv.Dimension("Bulk density (g/cm³)", value_format=lambda v: f"{v:.1f}")
 )
+
+# %% [markdown]
+# ## 8. Soil water vs. texture (transposed line view)
+#
+# The same three water states as Section 7, transposed and drawn as a line/area diagram in the style of the classic FAO available-water figure: **texture on the x-axis** (coarse → fine), **water volume on the y-axis** expressed as **inches of water per foot of soil depth** (volumetric water content × 12), with the *permanent wilting point*, *field capacity*, and *total porosity* curves bounding the filled bands:
+#
+# - **Unavailable water** (orange): 0 → permanent wilting point
+# - **Available water** (green): wilting point → field capacity
+# - **Drainable water** (blue): field capacity → total porosity
+#
+# Use the **bulk-density slider** at the bottom to vary BD; the selected value appears in the title.
+
+# %%
+# Transposed line/area view: texture on x (coarse -> fine), water content on y, with a
+# bulk-density slider. Built as a HoloMap of overlays (one frame per bulk density) so it
+# embeds every frame and works in the saved notebook without a live kernel.
+hv.output(widget_location="bottom")
+
+texture_x = {cls: i for i, cls in enumerate(TEXTURE_CLASSES)}  # sand=0 ... clay=11
+# x tick labels: texture class with its hydrologic soil group in parentheses, e.g. "sand (A)"
+texture_ticks = [(i, f"{cls} ({HYDROLOGIC_SOIL_GROUP[cls]})") for cls, i in texture_x.items()]
+
+# volumetric water content (cm³/cm³) -> inches of water per foot of soil depth (FAO style)
+INCHES_PER_FOOT = 12.0
+
+
+def _water_profile(bd):
+    d = (
+        result[result["bulk_density_g_cm3"] == bd]
+        .set_index("texture_class")
+        .reindex(list(TEXTURE_CLASSES))
+        .reset_index()
+    )
+    x = d["texture_class"].map(texture_x).to_numpy()
+    pwp = d["wilting_point_porosity"].to_numpy() * INCHES_PER_FOOT
+    fc = d["field_capacity_porosity"].to_numpy() * INCHES_PER_FOOT
+    por = d["total_porosity"].to_numpy() * INCHES_PER_FOOT
+
+    bands = (
+        hv.Area((x, pwp, pwp * 0), vdims=["y", "y2"]).opts(color="orange", alpha=0.45, line_alpha=0)
+        * hv.Area((x, fc, pwp), vdims=["y", "y2"]).opts(color="green", alpha=0.45, line_alpha=0)
+        * hv.Area((x, por, fc), vdims=["y", "y2"]).opts(color="blue", alpha=0.40, line_alpha=0)
+    )
+    lines = (
+        hv.Curve((x, pwp), label="Permanent wilting point").opts(color="black", line_width=2)
+        * hv.Curve((x, fc), label="Field capacity").opts(color="black", line_width=2)
+        * hv.Curve((x, por), label="Total porosity").opts(color="gray", line_width=1.5, line_dash="dashed")
+    )
+    labels = (
+        hv.Text(8, pwp[8] * 0.5, "Unavailable\nwater").opts(text_color="saddlebrown", text_font_size="9pt")
+        * hv.Text(5, (pwp[5] + fc[5]) / 2, "Available water").opts(text_color="darkgreen", text_font_size="10pt")
+        * hv.Text(2.2, (fc[2] + por[2]) / 2, "Drainable\nwater").opts(text_color="navy", text_font_size="9pt")
+    )
+    return bands * lines * labels
+
+
+profiles = hv.HoloMap(
+    {bd: _water_profile(bd) for bd in bulk_densities},
+    kdims=[hv.Dimension("Bulk density (g/cm³)", value_format=lambda v: f"{v:.1f}")],
+)
+
+profiles.opts(
+    hv.opts.Overlay(
+        width=820,
+        height=520,
+        legend_position="top_left",
+        xlabel="texture class (hydrologic soil group); coarse → fine",
+        ylabel="Water volume (inches per foot of soil depth)",
+        title="Soil water vs. texture (Rosetta) — {dimensions}",
+    ),
+    hv.opts.Curve(xticks=texture_ticks, xrotation=45, ylim=(0, 0.7 * INCHES_PER_FOOT)),
+    hv.opts.Area(xticks=texture_ticks, xrotation=45, ylim=(0, 0.7 * INCHES_PER_FOOT)),
+)
