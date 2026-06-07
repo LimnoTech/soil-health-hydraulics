@@ -12,6 +12,9 @@ values) and for bulk densities from 0.8 to 2.0 g/cm³ in 0.1 steps:
 - **Permanent-wilting-point porosity** — volumetric water content at 1500 kPa (15000 cm suction)
 - **Available water capacity** — field capacity minus wilting point
 
+Each output table also carries an **NRCS hydrologic soil group** (A–D) column, inferred from
+texture class (see caveat below).
+
 Output is a 156-row pandas DataFrame (12 texture classes × 13 bulk densities), also written
 to [rosetta_porosity_by_texture.csv](rosetta_porosity_by_texture.csv).
 
@@ -23,6 +26,12 @@ Built with [pixi](https://pixi.sh) — see [pixi.toml](pixi.toml).
 pixi install
 pixi run jupyter lab    # open and run rosetta_porosity_by_texture.ipynb
 ```
+
+The notebook is paired with a [jupytext](https://jupytext.readthedocs.io/) `py:percent`
+script, [rosetta_porosity_by_texture.py](rosetta_porosity_by_texture.py), which is the
+diff-friendly version to review and commit. Editing either file and running
+`pixi run jupytext --sync rosetta_porosity_by_texture.py` keeps the two in sync (the `.py`
+holds the code/markdown; the `.ipynb` holds outputs).
 
 ### Key methodologies
 
@@ -46,6 +55,23 @@ pixi run jupyter lab    # open and run rosetta_porosity_by_texture.ipynb
 - **Bulk-density sweep** — Rosetta was trained on realistic texture + density combinations,
   so the extremes (e.g. clay at 0.8 or sand at 2.0 g/cm³) are extrapolations: plausible-looking
   but outside the well-constrained range.
+- **Hydrologic soil group (HSG)** — each row is tagged with an NRCS HSG (A–D) immediately to
+  the right of `texture_class`, via the `HYDROLOGIC_SOIL_GROUP` mapping:
+
+  | HSG | Texture classes | Runoff / infiltration |
+  | --- | --- | --- |
+  | A | sand, loamy sand, sandy loam | low runoff / high infiltration |
+  | B | loam, silt loam, silt | moderate |
+  | C | sandy clay loam | slow infiltration |
+  | D | clay loam, silty clay loam, sandy clay, silty clay, clay | high runoff / very slow infiltration |
+
+  **Caveat:** HSG is *not* strictly defined by texture. The official NRCS definition
+  (National Engineering Handbook, Part 630, Ch. 7) is based on saturated hydraulic
+  conductivity, depth to a water-impermeable layer, and depth to the seasonal high water
+  table — so the same texture can fall in different groups depending on soil structure,
+  rock fragments, and profile conditions. The texture-only mapping used here is the common
+  approximation applied when Ksat is unknown (e.g. HYSOGs250m, SWAT); treat it as a
+  first-order estimate, not an authoritative classification.
 
 ### Sanity checks
 
@@ -57,3 +83,4 @@ published [ROSETTA centroid reference](https://ncss-tech.github.io/AQP/aqp/water
 - Zhang & Schaap (2017), [rosetta-soil](https://github.com/usda-ars-ussl/rosetta-soil)
 - van Genuchten (1980), *SSSAJ* 44:892–898
 - Levi (2017), [Modified Centroid for Estimating Sand, Silt, and Clay from Soil Texture Class](https://acsess.onlinelibrary.wiley.com/doi/abs/10.2136/sssaj2016.09.0301), *SSSAJ*
+- USDA-NRCS, [National Engineering Handbook, Part 630, Chapter 7 — Hydrologic Soil Groups](https://directives.nrcs.usda.gov/sites/default/files2/1712930597/11905.pdf)

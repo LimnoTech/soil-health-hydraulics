@@ -14,6 +14,8 @@ numpy = ">=2.4.6,<3"
 jupyterlab = ">=4.5.8,<5"
 ipykernel = ">=7.2.0,<8"
 matplotlib = ">=3.10.9,<4"
+hvplot = ">=0.12.2,<0.13"
+jupytext = ">=1.19.3,<2"
 
 [pypi-dependencies]
 rosetta-soil = ">=0.3.2, <0.4"
