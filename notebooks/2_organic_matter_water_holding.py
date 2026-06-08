@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.2
+#       jupytext_version: 1.19.3
 #   kernelspec:
 #     display_name: default
 #     language: python
@@ -23,8 +23,8 @@
 # Here we layer **organic-matter** effects on top, with two approaches:
 #
 # - **Section 1 — ROSETTA + Minasny & McBratney (2018):** ROSETTA's mineral baseline plus the
-#   empirical organic-carbon increments from M&M Table 2 (the OC sensitivity trusted over
-#   Saxton–Rawls). **Two sliders: mineral bulk density and organic carbon.**
+#   empirical organic-carbon increments from M&M Table 2 (the OC sensitivity preferred over
+#   Saxton–Rawls). **Two sliders: mineral bulk density and organic matter (0–8 %).**
 # - **Section 2 — Saxton & Rawls (2006):** an independent, self-contained PTF taking
 #   sand/clay/OM directly, with a validation of its OC sensitivity against M&M (§2.1).
 #
@@ -66,9 +66,9 @@ result.head()
 # ## 1. ROSETTA + organic-matter modifier (Minasny & McBratney 2018)
 #
 # Keep **ROSETTA's** texture + bulk-density skill for the *mineral* soil baseline, then add the
-# **empirical organic-carbon increments** from **Minasny & McBratney (2018) Table 2** — the OC
-# sensitivity that Minnesota soil scientists trust over Saxton–Rawls. Per **+1 % organic carbon**
-# (= +10 g C kg⁻¹), by USDA texture group:
+# **empirical organic-carbon increments** from **Minasny & McBratney (2018) Table 2** — an
+# OC sensitivity derived from >50,000 measurements and preferred here over Saxton–Rawls (see §2.1).
+# Per **+1 % organic carbon** (= +10 g C kg⁻¹), by USDA texture group:
 #
 # | M&M group | ΔWP | ΔAWC | ΔSAT  (mm 100 mm⁻¹ per 1 % OC) |
 # | --- | --- | --- | --- |
@@ -204,24 +204,33 @@ drain_lines = blend_df.hvplot.line(
 
 # %%
 # FAO-style transposed diagram for the ROSETTA + M&M blend, with TWO sliders: mineral bulk
-# density and organic carbon. dynamic=False embeds every (BD, OC) frame so it works in the
-# saved notebook without a live kernel. (OC on a coarser 1% grid to keep the frame count sane.)
+# density and organic MATTER (the way the audience thinks about it; OM ≈ OC / 0.58). Computed
+# directly from the ROSETTA baseline + M&M increments so the slider can carry round OM values.
+# dynamic=False embeds every (BD, OM) frame so it works without a live kernel. (OM capped at
+# 8% on a 1% grid to bound the frame count / latency.)
 hv.output(widget_location="bottom")
 
-oc_grid = np.round(np.arange(0.0, 8.0 + 1e-9, 1.0), 1)
+om_grid = np.round(np.arange(0.0, 8.0 + 1e-9, 1.0), 1)  # organic matter %, 0–8 (≈ 0–4.6% OC)
+x_pos = np.array([texture_x[cls] for cls in TEXTURE_CLASSES])
 
 
-def _blend_profile(bd, oc):
-    d = (
-        blend_df[(blend_df["bulk_density_g_cm3"] == bd) & (blend_df["oc_pct"] == oc)]
-        .set_index("texture_class")
-        .reindex(list(TEXTURE_CLASSES))
-        .reset_index()
-    )
-    x = d["texture_class"].map(texture_x).to_numpy()
-    pwp = d["wilting_point_porosity"].to_numpy() * INCHES_PER_FOOT
-    fc = d["field_capacity_porosity"].to_numpy() * INCHES_PER_FOOT
-    por = d["total_porosity"].to_numpy() * INCHES_PER_FOOT
+def _blend_profile(bd, om):
+    oc = om * VB  # organic matter % -> organic carbon %
+    wp, fc, por = [], [], []
+    for cls in TEXTURE_CLASSES:
+        s = MM_SLOPES[MM_GROUP[cls]]
+        sat0 = base.loc[(cls, bd), "total_porosity"]
+        fc0 = base.loc[(cls, bd), "field_capacity_porosity"]
+        wp0 = base.loc[(cls, bd), "wilting_point_porosity"]
+        wp_i = wp0 + s["WP"] / 100 * oc
+        awc_i = (fc0 - wp0) + s["AWC"] / 100 * oc
+        wp.append(wp_i)
+        fc.append(wp_i + awc_i)            # derive FC so AWC matches M&M exactly
+        por.append(sat0 + s["SAT"] / 100 * oc)
+    pwp = np.array(wp) * INCHES_PER_FOOT
+    fc = np.array(fc) * INCHES_PER_FOOT
+    por = np.array(por) * INCHES_PER_FOOT
+    x = x_pos
 
     bands = (
         hv.Area((x, pwp, pwp * 0), vdims=["y", "y2"]).opts(color="orange", alpha=0.45, line_alpha=0)
@@ -242,10 +251,10 @@ def _blend_profile(bd, oc):
 
 
 blend_profiles = hv.HoloMap(
-    {(bd, oc): _blend_profile(bd, oc) for bd in bulk_densities for oc in oc_grid},
+    {(bd, om): _blend_profile(bd, om) for bd in bulk_densities for om in om_grid},
     kdims=[
         hv.Dimension("Bulk density (g/cm³)", value_format=lambda v: f"{v:.1f}"),
-        hv.Dimension("Organic carbon (%)", value_format=lambda v: f"{v:.1f}"),
+        hv.Dimension("Organic matter (% by weight)", value_format=lambda v: f"{v:.1f}"),
     ],
 )
 
@@ -256,7 +265,7 @@ blend_profiles.opts(
         legend_position="top_left",
         xlabel="texture class (hydrologic soil group); coarse → fine",
         ylabel="Water volume (inches per foot of soil depth)",
-        title="Soil water vs. texture — ROSETTA + M&M blend — {dimensions}",
+        title="Soil water vs. texture — ROSETTA + Minasny & McBratney blend\n{dimensions}",
     ),
     hv.opts.Curve(xticks=texture_ticks, xrotation=45, ylim=(0, 10)),
     hv.opts.Area(xticks=texture_ticks, xrotation=45, ylim=(0, 10)),
