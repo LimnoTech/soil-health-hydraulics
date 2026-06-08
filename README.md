@@ -1,6 +1,6 @@
 # Soil Health Impacts on Water Storage and Hydraulic Conductivity
 
-Calculations and visualizations of how bulk density and organic matter content impact soil water-holding properties and hydraulic conductivity for every USDA texture class. These relationships help quantify how soil health practices (i.e. decompaction; compost amendments; diverse, dense, deep-rooted vegatation) can improve resiliency to drought and storms through increasing water storage and infiltration.
+Calculations and visualizations of how bulk density and organic matter content impact soil water-holding properties and hydraulic conductivity for every USDA texture class. These relationships help quantify how soil health practices (i.e. decompaction; compost amendments; diverse, dense, deep-rooted vegatation) can improve resiliency to drought and storms by increasing water storage and infiltration.
 
 Calculations are based on USDA [Rosetta v3](https://github.com/usda-ars-ussl/rosetta-soil) pedotransfer functions recalibrated in 2017 and on the meta-analysis of organic matter effects on water storage by [Minasny & McBratney (2018)](https://bsssjournals.onlinelibrary.wiley.com/doi/abs/10.1111/ejss.12475). Dynamic visualizations are built with the interactive HoloViews/Bokeh libraries for exploration in Jupyter Notebooks or exportable as HTML.
 
@@ -8,12 +8,13 @@ Calculations are based on USDA [Rosetta v3](https://github.com/usda-ars-ussl/ros
 
 | Notebook | Purpose |
 | --- | --- |
-| [notebooks/1_rosetta_porosity_by_texture.ipynb](notebooks/1_rosetta_porosity_by_texture.ipynb) | **ROSETTA texture × bulk-density baseline** — total porosity, field capacity, wilting point, available & drainable water, and saturated hydraulic conductivity (Ksat) for each texture class across bulk densities 0.8–1.9 g/cm³. Writes `rosetta_porosity_by_texture.csv`. |
-| [notebooks/2_organic_matter_water_holding.ipynb](notebooks/2_organic_matter_water_holding.ipynb) | **Organic-matter effects** — layers SOM/SOC sensitivity on top, two ways: a ROSETTA + Minasny–McBratney (2018) blend (anchored to a UNSODA-derived mineral-baseline OC), and Saxton–Rawls (2006). **Reads the CSV from the first notebook.** |
+| [1_rosetta_porosity_by_texture.ipynb](notebooks/1_rosetta_porosity_by_texture.ipynb) | **ROSETTA texture × bulk-density baseline** — total porosity, field capacity, wilting point, available & drainable water, plus Ksat and the Mualem–van Genuchten parameters for each texture class across bulk densities 0.8–1.9 g/cm³. Writes `rosetta_porosity_by_texture.csv`. |
+| [2_organic_matter_water_holding.ipynb](notebooks/2_organic_matter_water_holding.ipynb) | **Organic-matter effects** — layers SOM/SOC sensitivity on top, two ways: a ROSETTA + Minasny–McBratney (2018) blend (anchored to a UNSODA-derived mineral-baseline OC), and Saxton–Rawls (2006). **Reads the CSV from Notebook 1.** |
+| [3_rosetta_hydraulic_conductivity.ipynb](notebooks/3_rosetta_hydraulic_conductivity.ipynb) | **Hydraulic conductivity & infiltration** — saturated Ksat, unsaturated K(h) from the Mualem–van Genuchten parameters, and Green–Ampt infiltration f(t)/F(t), in stormwater units. **Reads the CSV from Notebook 1.** |
 
-**Run order:** execute `1_rosetta_porosity_by_texture.ipynb` first (it generates
-`rosetta_porosity_by_texture.csv`), then `2_organic_matter_water_holding.ipynb`, which loads that
-CSV for the mineral baseline.
+**Run order:** execute `1_rosetta_porosity_by_texture.ipynb` first (it writes
+`rosetta_porosity_by_texture.csv`); then `2_organic_matter_water_holding.ipynb` and
+`3_rosetta_hydraulic_conductivity.ipynb`, which both read that CSV (independently of each other).
 
 ### Environment (pixi)
 
@@ -21,7 +22,7 @@ Built with [pixi](https://pixi.sh) — see [pixi.toml](pixi.toml).
 
 ```bash
 pixi install
-pixi run jupyter lab    # open notebooks/ and run the two notebooks in order
+pixi run jupyter lab    # open notebooks/ and run Notebook 1 first, then 2 and 3
 ```
 
 Each notebook is paired with a [jupytext](https://jupytext.readthedocs.io/) `py:percent`
@@ -44,13 +45,14 @@ and for bulk densities from 0.8 to 1.9 g/cm³ in 0.1 steps:
 - **Permanent-wilting-point porosity** — volumetric water content at 1500 kPa (15000 cm suction)
 - **Available water capacity** — field capacity minus wilting point
 - **Drainable water** — saturation minus field capacity (shown in the band plots)
-- **Saturated hydraulic conductivity** — Rosetta Ksat, as `ksat_cm_day` (cm/day) and `ksat_in_hr` (in/hr, stormwater units); §6 plots it vs. bulk density on a log axis
+- **Saturated hydraulic conductivity** — Rosetta Ksat, as `ksat_cm_day` (cm/day) and `ksat_in_hr` (in/hr, stormwater units)
+- **Mualem–van Genuchten conductivity parameters** — `theta_r, vg_alpha_1cm, vg_n, k0_cm_day, mualem_L`, plus K at field capacity and wilting point (`k_fc_cm_day`, `k_wp_cm_day`) — carried in the CSV and used by Notebook 3
 
 Each output table also carries an **NRCS hydrologic soil group** (A–D) column, inferred from
 texture class (see caveat below). Output is a 144-row DataFrame (12 texture classes × 12 bulk
-densities, 0.8–1.9 g/cm³), written to `notebooks/rosetta_porosity_by_texture.csv`. Sections 6–8 add interactive
-plots (porosity/FC/WP vs. BD; a stacked-bar partition with a BD slider; and a transposed
-FAO-style line/area diagram in inches of water per foot of soil).
+densities, 0.8–1.9 g/cm³), written to `notebooks/rosetta_porosity_by_texture.csv`. Interactive plots:
+porosity/FC/WP vs. BD (§6), a stacked-bar partition (§7), and a transposed FAO-style band diagram
+(§8). Hydraulic conductivity and infiltration are visualized in **Notebook 3**.
 
 ### Key methodologies (baseline)
 
@@ -164,6 +166,26 @@ pixi run python notebooks/fetch_unsoda.py    # -> notebooks/data_temp/unsoda_bd_
 
 ---
 
+## Notebook 3 — Hydraulic conductivity & infiltration
+
+Reads `rosetta_porosity_by_texture.csv` from Notebook 1 (which carries Rosetta's Ksat and the
+Mualem–van Genuchten parameters) and visualizes conductivity and infiltration in stormwater units,
+with bulk-density sliders and the same `implausible_bd` grey-dashed extrapolation flagging:
+
+- **§1 Saturated K (Ksat)** — vs. bulk density on a log axis (in/hr).
+- **§2 Unsaturated K(h)** — Rosetta's full **Mualem–van Genuchten** curve,
+  K(h) = K0·Se^L·[1 − (1 − Se^(1/m))^m]² with Se(h) = [1 + (αh)^n]^(−m); uses `K0`/`L`
+  (columns 5–6), *not* Ksat. Log–log, with field-capacity / wilting-point markers.
+- **§3 Green–Ampt infiltration** — f(t) and cumulative F(t). Uses Rosetta's Ksat and moisture
+  deficit (θₛ − θ_wp) with the **Rawls, Brakensiek & Miller (1983)** textural wetting-front
+  suction ψ_f; deriving ψ_f from Rosetta's K(h) integral proved unreliable (its fitted `L`
+  mis-orders the capillary drive — sand above clay), so the published textural values are used.
+
+Caveats: Ksat/K0 are Rosetta's least-certain outputs, and the model is **matrix-only** (no
+macropores/structure), so field infiltration is often 1–2 orders of magnitude higher.
+
+---
+
 ## References
 
 - Zhang & Schaap (2017), [rosetta-soil](https://github.com/usda-ars-ussl/rosetta-soil)
@@ -172,4 +194,6 @@ pixi run python notebooks/fetch_unsoda.py    # -> notebooks/data_temp/unsoda_bd_
 - USDA-NRCS, [National Engineering Handbook, Part 630, Chapter 7 — Hydrologic Soil Groups](https://directives.nrcs.usda.gov/sites/default/files2/1712930597/11905.pdf)
 - Saxton & Rawls (2006), [Soil Water Characteristic Estimates by Texture and Organic Matter for Hydrologic Solutions](https://www.researchgate.net/publication/43257423_Soil_Water_Characteristic_Estimates_by_Texture_and_Organic_Matter_for_Hydrologic_Solutions), *SSSAJ* 70:1569–1578
 - Minasny & McBratney (2018), [Limited effect of organic matter on soil available water capacity](https://bsssjournals.onlinelibrary.wiley.com/doi/abs/10.1111/ejss.12475), *EJSS* 69:39–47
+- Schaap & Leij (2000), Improved prediction of unsaturated hydraulic conductivity with the Mualem–van Genuchten model, *SSSAJ* 64:843–851
+- Rawls, Brakensiek & Miller (1983), Green-Ampt infiltration parameters from soils data, *J. Hydraulic Engineering* 109:62–70
 - Nemes, Schaap, Leij & Wösten (2001), [Description of the unsaturated soil hydraulic database UNSODA version 2.0](https://www.sciencedirect.com/science/article/abs/pii/S0022169401004656), *J. Hydrology* 251:151–162 — data: [UNSODA 2.0 on Ag Data Commons](https://agdatacommons.nal.usda.gov/articles/dataset/24851832)

@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.2
+#       jupytext_version: 1.19.3
 #   kernelspec:
 #     display_name: default
 #     language: python
@@ -112,7 +112,12 @@ print(f"{len(bulk_densities)} bulk densities: {bulk_densities}")
 
 
 # %% [markdown]
-# ## 3. van Genuchten retention helper
+# ## 3. van Genuchten–Mualem helpers
+#
+# `vg_theta` gives the retention curve θ(h); `mualem_k` gives the **unsaturated** hydraulic
+# conductivity K(h) from Rosetta's Mualem–van Genuchten parameters (matching-point `K0` and
+# pore-connectivity `L`, columns 5–6 of the Rosetta output). Used for K at field capacity /
+# wilting point (§4) and carried in the CSV for the hydraulic-conductivity notebook (Notebook 3).
 
 # %%
 def vg_theta(h, theta_r, theta_s, alpha, n):
@@ -129,10 +134,29 @@ def vg_theta(h, theta_r, theta_s, alpha, n):
     return theta_r + (theta_s - theta_r) / (1.0 + (alpha * h) ** n) ** m
 
 
+def mualem_k(h, alpha, n, k0, L):
+    """Unsaturated hydraulic conductivity K at suction head h [cm], Mualem–van Genuchten
+    (Schaap & Leij, 2000), in the same units as k0 (Rosetta: cm/day):
+
+        Se = [1 + (alpha h)^n]^(-m),  m = 1 - 1/n
+        K(Se) = k0 * Se^L * [1 - (1 - Se^(1/m))^m]^2
+
+    k0 = matching-point conductivity (Rosetta col 5), L = pore-connectivity exponent
+    (col 6, often negative). At h = 0 (Se = 1) this returns k0 — note Rosetta's k0 is the
+    fitted matching point and is typically < Ksat (col 4). Scalars or numpy arrays.
+    """
+    h = np.abs(np.asarray(h, dtype=float))
+    alpha = np.asarray(alpha, dtype=float)
+    n = np.asarray(n, dtype=float)
+    m = 1.0 - 1.0 / n
+    Se = (1.0 + (alpha * h) ** n) ** (-m)
+    return k0 * Se**L * (1.0 - (1.0 - Se ** (1.0 / m)) ** m) ** 2
+
+
 # %% [markdown]
 # ## 4. Run Rosetta and build the results DataFrame
 #
-# Rosetta input columns are `[sand%, silt%, clay%, bulk_density]`; model version **3** (2017 recalibration) is used. The mean output columns are `[θᵣ, θₛ, α, n, Ksat, K0, L]` with α in 1/cm and n dimensionless (linear, not log₁₀). We keep **Ksat** (saturated hydraulic conductivity, column 4) as `ksat_cm_day` (cm/day) and `ksat_in_hr` (in/hr = cm/day ÷ 24 ÷ 2.54, the usual stormwater unit).
+# Rosetta input columns are `[sand%, silt%, clay%, bulk_density]`; model version **3** (2017 recalibration) is used. The mean output columns are `[θᵣ, θₛ, α, n, Ksat, K0, L]` with α in 1/cm and n dimensionless (linear, not log₁₀). We keep **Ksat** (saturated hydraulic conductivity, column 4) as `ksat_cm_day` (cm/day) and `ksat_in_hr` (in/hr = cm/day ÷ 24 ÷ 2.54, the usual stormwater unit). We also retain the **Mualem–van Genuchten** parameters `theta_r, vg_alpha_1cm, vg_n, k0_cm_day, mualem_L` (used by the hydraulic-conductivity notebook, **Notebook 3**) and the unsaturated K at field capacity / wilting point (`k_fc_cm_day`, `k_wp_cm_day`).
 
 # %%
 # Build every (texture class) x (bulk density) combination
@@ -157,6 +181,8 @@ mean = np.asarray(mean)
 
 theta_r, theta_s, alpha, n = mean[:, 0], mean[:, 1], mean[:, 2], mean[:, 3]
 ksat = mean[:, 4]  # saturated hydraulic conductivity, cm/day (linear, not log10)
+k0 = mean[:, 5]    # Mualem matching-point conductivity, cm/day
+Lpar = mean[:, 6]  # Mualem pore-connectivity exponent, dimensionless (often negative)
 
 df["total_porosity"] = theta_s
 df["field_capacity_porosity"] = vg_theta(H_FIELD_CAPACITY, theta_r, theta_s, alpha, n)
@@ -166,6 +192,15 @@ df["available_water_capacity"] = (
 )
 df["ksat_cm_day"] = ksat  # Rosetta saturated hydraulic conductivity (cm/day)
 df["ksat_in_hr"] = ksat / (24.0 * 2.54)  # same Ksat in inches/hour (stormwater units)
+# van Genuchten–Mualem parameters kept for the unsaturated-K and infiltration sections (§10–§11)
+df["theta_r"] = theta_r
+df["vg_alpha_1cm"] = alpha
+df["vg_n"] = n
+df["k0_cm_day"] = k0
+df["mualem_L"] = Lpar
+# unsaturated K at field capacity (33 kPa) and wilting point (1500 kPa), cm/day
+df["k_fc_cm_day"] = mualem_k(H_FIELD_CAPACITY, alpha, n, k0, Lpar)
+df["k_wp_cm_day"] = mualem_k(H_WILTING_POINT, alpha, n, k0, Lpar)
 df["rosetta_code"] = np.asarray(codes)  # 3 = texture + bulk density model
 
 # Physical-plausibility flag. Saturated water content θₛ cannot exceed the pore space
@@ -195,6 +230,13 @@ result = df[[
     "available_water_capacity",
     "ksat_cm_day",
     "ksat_in_hr",
+    "k_fc_cm_day",
+    "k_wp_cm_day",
+    "theta_r",
+    "vg_alpha_1cm",
+    "vg_n",
+    "k0_cm_day",
+    "mualem_L",
     "implausible_bd",
 ]].copy()
 
@@ -209,16 +251,13 @@ print("Wrote rosetta_porosity_by_texture.csv")
 # ## 6. Quick visualization of Water Storage
 #
 # Interactive [hvPlot](https://hvplot.holoviz.org/) / [HoloViews](https://holoviews.org/) (Bokeh)
-# line plots of total porosity, field-capacity porosity, wilting-point porosity, and saturated
-# hydraulic conductivity (Ksat) vs. bulk density, one line per texture class. Hover for values;
-# use the toolbar to pan/zoom.
+# line plots of total porosity, field-capacity porosity, and wilting-point porosity vs. bulk
+# density, one line per texture class. Hover for values; use the toolbar to pan/zoom.
+# (Hydraulic conductivity and infiltration are in Notebook 3.)
 #
 # **Extrapolation greyed out.** Each line is solid only over physically plausible bulk densities;
 # where Rosetta's θₛ exceeds the BD-implied pore space (the `implausible_bd` flag from §5) the curve
-# continues as a faint **grey dashed** tail. Ksat is on a **log axis** in stormwater units (in/hr):
-# note its sharp **upturn at high BD for silt and other fine textures** — a neural-network
-# *extrapolation artifact* (those dense fine-soil states are absent from Rosetta's training data),
-# not a real rise in conductivity. It falls entirely inside the greyed region.
+# continues as a faint **grey dashed** tail.
 
 # %%
 import hvplot.pandas  # noqa: F401  (registers the .hvplot accessor)
@@ -272,15 +311,6 @@ line_with_extrapolation(
     "wilting_point_porosity",
     "Wilting-point porosity at 1500 kPa (cm³/cm³)",
     "Rosetta wilting-point porosity vs. bulk density by USDA texture class",
-)
-
-# %%
-# Saturated hydraulic conductivity (log scale — spans orders of magnitude across texture/BD).
-line_with_extrapolation(
-    "ksat_in_hr",
-    "Saturated hydraulic conductivity Ksat (in/hr, log scale)",
-    "Rosetta saturated hydraulic conductivity vs. bulk density by USDA texture class",
-    logy=True,
 )
 
 # %% [markdown]
