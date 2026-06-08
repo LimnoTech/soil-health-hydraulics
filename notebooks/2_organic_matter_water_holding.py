@@ -76,12 +76,12 @@ result.head()
 # | Medium | 0.68 | 1.79 | 3.59 |
 # | Fine | 0.54 | 1.41 | 3.23 |
 #
-# **Blend** (volumetric, cm³/cm³); ROSETTA gives the OC = 0 baseline at the **mineral bulk
-# density set by the BD slider**:
+# **Blend** (volumetric, cm³/cm³); ROSETTA gives the baseline at the **mineral bulk density set
+# by the BD slider**, anchored at **OC = OC_base** (≈ 1 %, from UNSODA — see §1.1):
 #
-# - WP(OC)  = WP\_ROSETTA + (ΔWP/100)·OC
-# - AWC(OC) = AWC\_ROSETTA + (ΔAWC/100)·OC   (AWC\_ROSETTA = FC − WP from ROSETTA)
-# - SAT(OC) = θₛ\_ROSETTA + (ΔSAT/100)·OC
+# - WP(OC)  = WP\_ROSETTA + (ΔWP/100)·(OC − OC_base)
+# - AWC(OC) = AWC\_ROSETTA + (ΔAWC/100)·(OC − OC_base)   (AWC\_ROSETTA = FC − WP from ROSETTA)
+# - SAT(OC) = θₛ\_ROSETTA + (ΔSAT/100)·(OC − OC_base)
 # - FC(OC)  = WP + AWC  ;  **drainable = SAT − FC**
 #
 # We apply M&M's **WP, AWC and SAT** slopes — the three quantities that define the unavailable /
@@ -90,8 +90,10 @@ result.head()
 # property independently, ΔAWC ≠ ΔFC − ΔWP; anchoring on ΔFC instead would understate the AWC
 # response by ~25–50 %, especially in fine soils.)
 #
-# **Caveats.** (1) The OC = 0 curve is ROSETTA's prediction at the selected `BD` — a *nominal*
-# mineral baseline, since ROSETTA's training data already carry some OC. (2) The BD and OC sliders
+# **Caveats.** (1) ROSETTA's prediction is a *nominal* baseline at **OC ≈ `OC_BASELINE_PCT`**
+# (≈ 1 %, from UNSODA — §1.1), not OC = 0; the M&M increments are applied relative to it, so the
+# slider's 0 % end is a truly organic-free mineral soil (drier than ROSETTA), clamped at ≥ 0.
+# (2) The BD and OC sliders
 # are **independent "what-if" axes**; in reality organic matter *lowers* bulk density (the
 # low-BD ↔ high-OC diagonal is the realistic region), and a low-BD + high-OC corner double-counts
 # porosity, so don't read the extreme corners as coupled predictions. (3) The modifier is
@@ -99,9 +101,54 @@ result.head()
 # gains at high OC; their data span OC < 10 %. (4) OM ≈ OC / 0.58 (van Bemmelen), so the 0–8 % OC
 # axis ≈ 0–14 % OM.
 
+# %% [markdown]
+# ### 1.1 Mineral-baseline organic carbon (from UNSODA 2.0)
+#
+# ROSETTA has no OC input, but its training samples (UNSODA + others) are mineral-dominated
+# soils that *do* carry organic carbon — so the ROSETTA prediction is a **nominal baseline at
+# OC > 0**, not a true organic-free (OC = 0) soil. To pick a realistic anchor we examine the
+# 367 UNSODA 2.0 samples that report both bulk density and organic-matter content
+# (OC = 0.58·OM, van Bemmelen). OC falls clearly with bulk density (Pearson r ≈ −0.6). For the
+# mineral subset (OM ≤ 20 %): all-horizon mean ≈ 0.9 % OC; **mineral topsoil (≤15 cm) median
+# ≈ 1.1 % OC**. We therefore anchor ROSETTA at **`OC_BASELINE_PCT` (default 1.0 % OC)** and
+# apply the M&M increments *relative to that* baseline — so the slider's 0 % end is a truly
+# organic-free mineral soil (drier than ROSETTA) and OC ≈ 1 % reproduces ROSETTA.
+#
+# `data_temp/` is git-ignored; run `pixi run python notebooks/fetch_unsoda.py` to (re)create
+# the UNSODA extract read below.
+
+# %%
+import os
+
+# Organic-carbon anchor for the ROSETTA mineral baseline (see §1.1 / UNSODA below).
+# UNSODA mineral subset: all-horizon mean ~0.9 %, topsoil median ~1.1 % — round 1.0 % used here.
+OC_BASELINE_PCT = 1.0  # % organic carbon; adjust to taste
+
+_unsoda_path = "data_temp/unsoda_bd_om.csv"
+if os.path.exists(_unsoda_path):
+    unsoda = pd.read_csv(_unsoda_path)
+    mineral = unsoda[unsoda["is_mineral"]].copy()
+    mineral["horizon_group"] = np.where(
+        mineral["depth_upper"] <= 15, "topsoil (≤15 cm)", "subsoil (>15 cm)"
+    )
+    print("UNSODA mineral subset (OM ≤ 20%) — organic carbon %, OC = 0.58·OM:")
+    print(mineral.groupby("horizon_group")["OC_pct"].agg(["count", "mean", "median"]).round(2))
+    print(f"OC~BD Pearson r = {mineral['OC_pct'].corr(mineral['bulk_density_g_cm3']):.2f}")
+    _scatter = mineral.hvplot.scatter(
+        x="bulk_density_g_cm3", y="OC_pct", by="horizon_group",
+        xlabel="bulk density (g/cm³)", ylabel="organic carbon  OC = 0.58·OM  (%)",
+        title="UNSODA 2.0: organic carbon vs. bulk density (mineral soils)",
+        width=760, height=460, legend="top_right", alpha=0.6, size=25, ylim=(0, 12), grid=True,
+    )
+    _baseline = hv.HLine(OC_BASELINE_PCT).opts(color="firebrick", line_dash="dashed", line_width=2)
+    display(_scatter * _baseline)
+else:
+    print(f"{_unsoda_path} not found — run `pixi run python notebooks/fetch_unsoda.py` to regenerate it.")
+    print(f"Proceeding with the documented default OC_BASELINE_PCT = {OC_BASELINE_PCT} % OC.")
+
 # %%
 # ROSETTA mineral baseline (per bulk density) + additive Minasny & McBratney (2018) OC
-# increments, computed across the full bulk-density range so BD is an interactive axis.
+# increments, applied RELATIVE to OC_BASELINE_PCT, across the full bulk-density range.
 VB = 0.58  # van Bemmelen factor: OM ≈ OC / VB
 
 # Minasny & McBratney (2018) Table 2 slopes, mm H2O 100 mm-1 per +1% OC (= +10 g C/kg)
@@ -128,9 +175,10 @@ for bd in bulk_densities:
             fc0 = base.loc[(cls, bd), "field_capacity_porosity"]
             wp0 = base.loc[(cls, bd), "wilting_point_porosity"]
             awc0 = fc0 - wp0
-            wp = wp0 + s["WP"] / 100 * oc
-            awc = awc0 + s["AWC"] / 100 * oc   # M&M AWC slope applied directly
-            sat = sat0 + s["SAT"] / 100 * oc
+            d_oc = oc - OC_BASELINE_PCT          # increments relative to the mineral-baseline OC
+            wp = max(wp0 + s["WP"] / 100 * d_oc, 0.0)
+            awc = max(awc0 + s["AWC"] / 100 * d_oc, 0.0)   # M&M AWC slope; floor at 0
+            sat = max(sat0 + s["SAT"] / 100 * d_oc, wp + awc)  # keep SAT >= FC
             fc = wp + awc                       # derive FC so AWC matches M&M exactly
             blend_rows.append(
                 {
@@ -174,9 +222,11 @@ awc_lines = blend_df.hvplot.line(
     grid=True,
     ylim=(0, 0.42),
 )
-(awc_lines * hv.VLine(om8_oc).opts(color="black", line_dash="dotted", line_width=1)).redim(
-    bulk_density_g_cm3=hv.Dimension("Bulk density (g/cm³)", value_format=lambda v: f"{v:.1f}")
-)
+(
+    awc_lines
+    * hv.VLine(OC_BASELINE_PCT).opts(color="firebrick", line_dash="dashed", line_width=1)  # ROSETTA baseline OC
+    * hv.VLine(om8_oc).opts(color="black", line_dash="dotted", line_width=1)               # 8% OM
+).redim(bulk_density_g_cm3=hv.Dimension("Bulk density (g/cm³)", value_format=lambda v: f"{v:.1f}"))
 
 # %%
 # DRAINABLE water (saturation − field capacity) vs. organic carbon — the rapidly draining pore
@@ -198,9 +248,11 @@ drain_lines = blend_df.hvplot.line(
     grid=True,
     ylim=(0, 0.60),
 )
-(drain_lines * hv.VLine(om8_oc).opts(color="black", line_dash="dotted", line_width=1)).redim(
-    bulk_density_g_cm3=hv.Dimension("Bulk density (g/cm³)", value_format=lambda v: f"{v:.1f}")
-)
+(
+    drain_lines
+    * hv.VLine(OC_BASELINE_PCT).opts(color="firebrick", line_dash="dashed", line_width=1)  # ROSETTA baseline OC
+    * hv.VLine(om8_oc).opts(color="black", line_dash="dotted", line_width=1)               # 8% OM
+).redim(bulk_density_g_cm3=hv.Dimension("Bulk density (g/cm³)", value_format=lambda v: f"{v:.1f}"))
 
 # %%
 # FAO-style transposed diagram for the ROSETTA + M&M blend, with TWO sliders: mineral bulk
@@ -215,18 +267,18 @@ x_pos = np.array([texture_x[cls] for cls in TEXTURE_CLASSES])
 
 
 def _blend_profile(bd, om):
-    oc = om * VB  # organic matter % -> organic carbon %
+    d_oc = om * VB - OC_BASELINE_PCT  # OM% -> OC%, then relative to the mineral-baseline OC
     wp, fc, por = [], [], []
     for cls in TEXTURE_CLASSES:
         s = MM_SLOPES[MM_GROUP[cls]]
         sat0 = base.loc[(cls, bd), "total_porosity"]
         fc0 = base.loc[(cls, bd), "field_capacity_porosity"]
         wp0 = base.loc[(cls, bd), "wilting_point_porosity"]
-        wp_i = wp0 + s["WP"] / 100 * oc
-        awc_i = (fc0 - wp0) + s["AWC"] / 100 * oc
+        wp_i = max(wp0 + s["WP"] / 100 * d_oc, 0.0)
+        awc_i = max((fc0 - wp0) + s["AWC"] / 100 * d_oc, 0.0)
         wp.append(wp_i)
         fc.append(wp_i + awc_i)            # derive FC so AWC matches M&M exactly
-        por.append(sat0 + s["SAT"] / 100 * oc)
+        por.append(max(sat0 + s["SAT"] / 100 * d_oc, wp_i + awc_i))
     pwp = np.array(wp) * INCHES_PER_FOOT
     fc = np.array(fc) * INCHES_PER_FOOT
     por = np.array(por) * INCHES_PER_FOOT

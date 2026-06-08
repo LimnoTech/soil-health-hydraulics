@@ -219,3 +219,6 @@ __marimo__/
 # pixi environments
 .pixi/*
 !.pixi/config.toml
+
+# UNSODA scratch / working data (regenerate with notebooks/fetch_unsoda.py)
+notebooks/data_temp/
