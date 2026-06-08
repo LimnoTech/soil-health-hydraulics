@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.3
+#       jupytext_version: 1.19.2
 #   kernelspec:
 #     display_name: default
 #     language: python
@@ -206,7 +206,7 @@ result.to_csv("rosetta_porosity_by_texture.csv", index=False)
 print("Wrote rosetta_porosity_by_texture.csv")
 
 # %% [markdown]
-# ## 6. Quick visualization (optional)
+# ## 6. Quick visualization of Water Storage
 #
 # Interactive [hvPlot](https://hvplot.holoviz.org/) / [HoloViews](https://holoviews.org/) (Bokeh)
 # line plots of total porosity, field-capacity porosity, wilting-point porosity, and saturated

@@ -1,8 +1,8 @@
-# soil_modeling
+# Soil Health Impacts on Water Storage and Hydraulic Conductivity
 
-Estimating soil water-holding properties for every USDA texture class from pedotransfer
-functions, with interactive HoloViews/Bokeh visualizations. All notebooks live in
-[notebooks/](notebooks/).
+Calculations and visualizations of how bulk density and organic matter content impact soil water-holding properties and hydraulic conductivity for every USDA texture class. These relationships help quantify how soil health practices (i.e. decompaction; compost amendments; diverse, dense, deep-rooted vegatation) can improve resiliency to drought and storms through increasing water storage and infiltration.
+
+Calculations are based on USDA [Rosetta v3](https://github.com/usda-ars-ussl/rosetta-soil) pedotransfer functions recalibrated in 2017 and on the meta-analysis of organic matter effects on water storage by [Minasny & McBratney (2018)](https://bsssjournals.onlinelibrary.wiley.com/doi/abs/10.1111/ejss.12475). Dynamic visualizations are built with the interactive HoloViews/Bokeh libraries for exploration in Jupyter Notebooks or exportable as HTML.
 
 ## Notebooks
 

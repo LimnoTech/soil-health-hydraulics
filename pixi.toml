@@ -1,8 +1,8 @@
 [workspace]
 authors = ["Anthony Aufdenkampe <aaufdenkampe@limno.com>"]
 channels = ["conda-forge"]
-name = "soil_modeling"
-platforms = ["osx-arm64"]
+name = "soil-health-hydraulics"
+platforms = ["osx-arm64", "win-64"]
 version = "0.1.0"
 
 [tasks]
