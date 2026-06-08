@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.2
+#       jupytext_version: 1.19.3
 #   kernelspec:
 #     display_name: default
 #     language: python
@@ -16,13 +16,14 @@
 # %% [markdown]
 # # Soil porosity by USDA texture class and bulk density (Rosetta)
 #
-# This notebook uses the **Rosetta** pedotransfer functions ([usda-ars-ussl/rosetta-soil](https://github.com/usda-ars-ussl/rosetta-soil)) to estimate, for **every USDA soil texture class** (using representative *median* sand/silt/clay values) and for **bulk densities from 0.8 to 2.0 g/cm³ in 0.1 steps**:
+# This notebook uses the **Rosetta** pedotransfer functions ([usda-ars-ussl/rosetta-soil](https://github.com/usda-ars-ussl/rosetta-soil)) to estimate, for **every USDA soil texture class** (using representative *median* sand/silt/clay values) and for **bulk densities from 0.8 to 1.9 g/cm³ in 0.1 steps**:
 #
 # | Output | Definition |
 # |---|---|
 # | **Total porosity** | Saturated volumetric water content θₛ (van Genuchten) |
 # | **Field-capacity porosity** | Volumetric water content at 33 kPa (= 330 cm suction) |
 # | **Permanent-wilting-point porosity** | Volumetric water content at 1500 kPa (= 15000 cm suction) |
+# | **Saturated hydraulic conductivity** | Ksat (cm/day) — Rosetta's conductivity output |
 #
 # Rosetta predicts the **van Genuchten** water-retention parameters (θᵣ, θₛ, α, n) from texture + bulk density. We then evaluate the retention curve at the field-capacity and wilting-point suctions.
 #
@@ -99,8 +100,9 @@ texture_df
 # ## 2. Bulk-density range and suction set-points
 
 # %%
-# Bulk density 0.8 -> 2.0 g/cm3 in 0.1 steps (rounded to avoid float drift)
-bulk_densities = np.round(np.arange(0.8, 2.0 + 1e-9, 0.1), 1)
+# Bulk density 0.8 -> 1.9 g/cm3 in 0.1 steps (rounded to avoid float drift). Capped at 1.9:
+# BD 2.0 is physically implausible (θₛ > pore space) for most textures — see implausible_bd.
+bulk_densities = np.round(np.arange(0.8, 1.9 + 1e-9, 0.1), 1)
 
 # Suction heads (cm) at which to evaluate the retention curve
 H_FIELD_CAPACITY = 330.0    # 33 kPa
@@ -130,7 +132,7 @@ def vg_theta(h, theta_r, theta_s, alpha, n):
 # %% [markdown]
 # ## 4. Run Rosetta and build the results DataFrame
 #
-# Rosetta input columns are `[sand%, silt%, clay%, bulk_density]`; model version **3** (2017 recalibration) is used. The mean output columns are `[θᵣ, θₛ, α, n, Ksat, K0, L]` with α in 1/cm and n dimensionless (linear, not log₁₀).
+# Rosetta input columns are `[sand%, silt%, clay%, bulk_density]`; model version **3** (2017 recalibration) is used. The mean output columns are `[θᵣ, θₛ, α, n, Ksat, K0, L]` with α in 1/cm and n dimensionless (linear, not log₁₀). We keep **Ksat** (saturated hydraulic conductivity, column 4) as `ksat_cm_day` (cm/day) and `ksat_in_hr` (in/hr = cm/day ÷ 24 ÷ 2.54, the usual stormwater unit).
 
 # %%
 # Build every (texture class) x (bulk density) combination
@@ -154,6 +156,7 @@ mean, stdev, codes = rosetta(3, SoilData.from_iter(rosetta_input.tolist()))
 mean = np.asarray(mean)
 
 theta_r, theta_s, alpha, n = mean[:, 0], mean[:, 1], mean[:, 2], mean[:, 3]
+ksat = mean[:, 4]  # saturated hydraulic conductivity, cm/day (linear, not log10)
 
 df["total_porosity"] = theta_s
 df["field_capacity_porosity"] = vg_theta(H_FIELD_CAPACITY, theta_r, theta_s, alpha, n)
@@ -161,7 +164,16 @@ df["wilting_point_porosity"] = vg_theta(H_WILTING_POINT, theta_r, theta_s, alpha
 df["available_water_capacity"] = (
     df["field_capacity_porosity"] - df["wilting_point_porosity"]
 )
+df["ksat_cm_day"] = ksat  # Rosetta saturated hydraulic conductivity (cm/day)
+df["ksat_in_hr"] = ksat / (24.0 * 2.54)  # same Ksat in inches/hour (stormwater units)
 df["rosetta_code"] = np.asarray(codes)  # 3 = texture + bulk density model
+
+# Physical-plausibility flag. Saturated water content θₛ cannot exceed the pore space
+# implied by the bulk density (1 - BD/ρ_particle, ρ_particle ≈ 2.65 g/cm³). Where Rosetta's
+# θₛ exceeds it, the texture × BD combination is an extrapolation outside Rosetta's training
+# domain (e.g. high-BD silt, which drives the spurious Ksat upturn). True = implausible.
+PARTICLE_DENSITY = 2.65  # g/cm³, quartz-dominated mineral soil
+df["implausible_bd"] = df["total_porosity"] > (1.0 - df["bulk_density_g_cm3"] / PARTICLE_DENSITY)
 
 print(f"{len(df)} rows  ({len(TEXTURE_CLASSES)} classes x {len(bulk_densities)} bulk densities)")
 df.head(15)
@@ -181,6 +193,9 @@ result = df[[
     "field_capacity_porosity",
     "wilting_point_porosity",
     "available_water_capacity",
+    "ksat_cm_day",
+    "ksat_in_hr",
+    "implausible_bd",
 ]].copy()
 
 result
@@ -193,10 +208,21 @@ print("Wrote rosetta_porosity_by_texture.csv")
 # %% [markdown]
 # ## 6. Quick visualization (optional)
 #
-# Interactive [hvPlot](https://hvplot.holoviz.org/) / [HoloViews](https://holoviews.org/) (Bokeh) line plots of total porosity, field-capacity porosity, and wilting-point porosity vs. bulk density, one line per texture class. Hover for values; use the toolbar to pan/zoom.
+# Interactive [hvPlot](https://hvplot.holoviz.org/) / [HoloViews](https://holoviews.org/) (Bokeh)
+# line plots of total porosity, field-capacity porosity, wilting-point porosity, and saturated
+# hydraulic conductivity (Ksat) vs. bulk density, one line per texture class. Hover for values;
+# use the toolbar to pan/zoom.
+#
+# **Extrapolation greyed out.** Each line is solid only over physically plausible bulk densities;
+# where Rosetta's θₛ exceeds the BD-implied pore space (the `implausible_bd` flag from §5) the curve
+# continues as a faint **grey dashed** tail. Ksat is on a **log axis** in stormwater units (in/hr):
+# note its sharp **upturn at high BD for silt and other fine textures** — a neural-network
+# *extrapolation artifact* (those dense fine-soil states are absent from Rosetta's training data),
+# not a real rise in conductivity. It falls entirely inside the greyed region.
 
 # %%
 import hvplot.pandas  # noqa: F401  (registers the .hvplot accessor)
+import holoviews as hv
 
 plot_opts = dict(
     x="bulk_density_g_cm3",
@@ -208,27 +234,53 @@ plot_opts = dict(
     grid=True,
 )
 
-result.hvplot.line(
-    y="total_porosity",
-    ylabel="Total porosity θₛ (cm³/cm³)",
-    title="Rosetta total porosity vs. bulk density by USDA texture class",
-    **plot_opts,
+# Each texture's curve is drawn solid over plausible bulk densities and grey-dashed where
+# implausible_bd is True (Rosetta θₛ > BD-implied pore space). The boundary row is kept in
+# both series so the solid and dashed segments join.
+_next_implausible = result.groupby("texture_class", sort=False)["implausible_bd"].shift(-1).fillna(False)
+_extrap_mask = result["implausible_bd"] | _next_implausible
+
+
+def line_with_extrapolation(ycol, ylabel, title, **extra):
+    solid = result.assign(**{ycol: result[ycol].where(~result["implausible_bd"])}).hvplot.line(
+        y=ycol, ylabel=ylabel, title=title, **plot_opts, **extra
+    )
+    dashed = (
+        result.assign(**{ycol: result[ycol].where(_extrap_mask)})
+        .hvplot.line(y=ycol, **plot_opts, **extra)
+        .opts(hv.opts.Curve(color="lightgray", line_dash="dashed", alpha=0.9))
+        .opts(show_legend=False)
+    )
+    return solid * dashed
+
+
+line_with_extrapolation(
+    "total_porosity",
+    "Total porosity θₛ (cm³/cm³)",
+    "Rosetta total porosity vs. bulk density by USDA texture class",
 )
 
 # %%
-result.hvplot.line(
-    y="field_capacity_porosity",
-    ylabel="Field-capacity porosity at 33 kPa (cm³/cm³)",
-    title="Rosetta field-capacity porosity vs. bulk density by USDA texture class",
-    **plot_opts,
+line_with_extrapolation(
+    "field_capacity_porosity",
+    "Field-capacity porosity at 33 kPa (cm³/cm³)",
+    "Rosetta field-capacity porosity vs. bulk density by USDA texture class",
 )
 
 # %%
-result.hvplot.line(
-    y="wilting_point_porosity",
-    ylabel="Wilting-point porosity at 1500 kPa (cm³/cm³)",
-    title="Rosetta wilting-point porosity vs. bulk density by USDA texture class",
-    **plot_opts,
+line_with_extrapolation(
+    "wilting_point_porosity",
+    "Wilting-point porosity at 1500 kPa (cm³/cm³)",
+    "Rosetta wilting-point porosity vs. bulk density by USDA texture class",
+)
+
+# %%
+# Saturated hydraulic conductivity (log scale — spans orders of magnitude across texture/BD).
+line_with_extrapolation(
+    "ksat_in_hr",
+    "Saturated hydraulic conductivity Ksat (in/hr, log scale)",
+    "Rosetta saturated hydraulic conductivity vs. bulk density by USDA texture class",
+    logy=True,
 )
 
 # %% [markdown]
@@ -242,7 +294,7 @@ result.hvplot.line(
 # | **Available water** | wilting point → field capacity (33 kPa) | green |
 # | **Drainable water** | field capacity → total porosity (saturation) | blue |
 #
-# The three bands sum to total porosity θₛ. Use the **bulk-density slider** at the bottom to vary BD across the 0.8–2.0 g/cm³ range; the selected value is shown in the plot title.
+# The three bands sum to total porosity θₛ. Use the **bulk-density slider** at the bottom to vary BD across the 0.8–1.9 g/cm³ range; the selected value is shown in the plot title. A red **⚠** marks bars at bulk densities that are physically implausible for that texture (`implausible_bd`: θₛ > 1 − BD/2.65 — extrapolation).
 
 # %%
 import holoviews as hv
@@ -298,8 +350,28 @@ hmap = part_long.hvplot.barh(
     height=550,
     legend="top_right",
 )
+# Per-BD "⚠" markers at the end of bars for textures that are physically implausible at that
+# BD (extrapolation, implausible_bd). Built as a HoloMap keyed like the bars so it tracks the slider.
+def _implausible_marks(bd):
+    sub = result[result["bulk_density_g_cm3"] == bd]
+    # barh inverts axes, so in data space the categorical texture is the FIRST coordinate and the
+    # numeric bar value is the SECOND; passing them the other way injects the numeric values as
+    # spurious extra y-axis categories (the bug this fixes).
+    marks = [
+        hv.Text(f"{r.texture_class} ({r.hydrologic_soil_group})", r.total_porosity + 0.01, "⚠",
+                halign="left").opts(text_color="red", text_font_size="9pt")
+        for r in sub.itertuples() if r.implausible_bd
+    ]
+    # every frame must be the same type (Overlay); use an off-canvas blank when none are flagged
+    if not marks:
+        first = next(iter(TEXTURE_CLASSES))
+        marks = [hv.Text(f"{first} ({HYDROLOGIC_SOIL_GROUP[first]})", -1.0, " ").opts(text_alpha=0)]
+    return hv.Overlay(marks)
+
+marks_hmap = hv.HoloMap({bd: _implausible_marks(bd) for bd in bulk_densities}, kdims=["bulk_density_g_cm3"])
+
 # readable slider/title label + consistent one-decimal bulk density
-hmap.redim(
+(hmap * marks_hmap).redim(
     bulk_density_g_cm3=hv.Dimension("Bulk density (g/cm³)", value_format=lambda v: f"{v:.1f}")
 )
 
@@ -313,11 +385,14 @@ hmap.redim(
 # - **Drainable water** (blue): field capacity → total porosity
 #
 # Use the **bulk-density slider** at the bottom to vary BD; the selected value appears in the title.
+# Texture columns are **greyed out** at bulk densities where the combination is physically
+# implausible (`implausible_bd`: Rosetta θₛ > pore space 1 − BD/2.65) — i.e. extrapolation.
 
 # %%
 # Transposed line/area view: texture on x (coarse -> fine), water content on y, with a
 # bulk-density slider. Built as a HoloMap of overlays (one frame per bulk density) so it
-# embeds every frame and works in the saved notebook without a live kernel.
+# embeds every frame and works in the saved notebook without a live kernel. Columns flagged
+# implausible_bd (θₛ > 1 − BD/2.65) are greyed as an extrapolation warning.
 hv.output(widget_location="bottom")
 
 texture_x = {cls: i for i, cls in enumerate(TEXTURE_CLASSES)}  # sand=0 ... clay=11
@@ -355,7 +430,14 @@ def _water_profile(bd):
         * hv.Text(5, (pwp[5] + fc[5]) / 2, "Available water").opts(text_color="darkgreen", text_font_size="10pt")
         * hv.Text(2.2, (fc[2] + por[2]) / 2, "Drainable\nwater").opts(text_color="navy", text_font_size="10pt")
     )
-    return bands * lines * labels
+    overlay = bands
+    # grey out columns where this BD is physically implausible for the texture (extrapolation)
+    flagged = x[d["implausible_bd"].to_numpy()]
+    if len(flagged):
+        overlay = overlay * hv.Overlay(
+            [hv.VSpan(xi - 0.5, xi + 0.5).opts(color="gray", alpha=0.2) for xi in flagged]
+        )
+    return overlay * lines * labels
 
 
 profiles = hv.HoloMap(

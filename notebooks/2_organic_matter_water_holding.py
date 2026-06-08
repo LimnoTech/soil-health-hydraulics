@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.3
+#       jupytext_version: 1.19.2
 #   kernelspec:
 #     display_name: default
 #     language: python
@@ -20,13 +20,16 @@
 # texture × bulk-density baseline (total porosity, field capacity, wilting point) for every
 # USDA texture class and writes **`rosetta_porosity_by_texture.csv`** — **run it first**.
 #
-# Here we layer **organic-matter** effects on top, with two approaches:
+# We first establish ROSETTA's **mineral-baseline organic carbon** (Section 1), then layer
+# **organic-matter** effects on top, two ways:
 #
-# - **Section 1 — ROSETTA + Minasny & McBratney (2018):** ROSETTA's mineral baseline plus the
-#   empirical organic-carbon increments from M&M Table 2 (the OC sensitivity preferred over
-#   Saxton–Rawls). **Two sliders: mineral bulk density and organic matter (0–8 %).**
-# - **Section 2 — Saxton & Rawls (2006):** an independent, self-contained PTF taking
-#   sand/clay/OM directly, with a validation of its OC sensitivity against M&M (§2.1).
+# - **Section 1 — Mineral-baseline OC (UNSODA 2.0):** estimate the organic carbon implicit in
+#   ROSETTA's mineral baseline, used as the anchor for the blend.
+# - **Section 2 — ROSETTA + Minasny & McBratney (2018):** ROSETTA's mineral baseline plus M&M's
+#   empirical organic-carbon increments (the OC sensitivity preferred over Saxton–Rawls).
+#   **Two sliders: mineral bulk density and organic matter (0–8 %).**
+# - **Section 3 — Saxton & Rawls (2006):** an independent, self-contained PTF taking
+#   sand/clay/OM directly, with a validation of its OC sensitivity against M&M (§3.1).
 #
 # Two outputs get equal billing for our **stormwater** audience: **available water**
 # (FC − WP, plant-available) and **drainable water** (SAT − FC), the fast-draining pore
@@ -63,56 +66,16 @@ print(f"loaded {len(result)} ROSETTA rows: {len(TEXTURE_CLASSES)} textures x {le
 result.head()
 
 # %% [markdown]
-# ## 1. ROSETTA + organic-matter modifier (Minasny & McBratney 2018)
-#
-# Keep **ROSETTA's** texture + bulk-density skill for the *mineral* soil baseline, then add the
-# **empirical organic-carbon increments** from **Minasny & McBratney (2018) Table 2** — an
-# OC sensitivity derived from >50,000 measurements and preferred here over Saxton–Rawls (see §2.1).
-# Per **+1 % organic carbon** (= +10 g C kg⁻¹), by USDA texture group:
-#
-# | M&M group | ΔWP | ΔAWC | ΔSAT  (mm 100 mm⁻¹ per 1 % OC) |
-# | --- | --- | --- | --- |
-# | Coarse | 0.86 | 1.94 | 4.59 |
-# | Medium | 0.68 | 1.79 | 3.59 |
-# | Fine | 0.54 | 1.41 | 3.23 |
-#
-# **Blend** (volumetric, cm³/cm³); ROSETTA gives the baseline at the **mineral bulk density set
-# by the BD slider**, anchored at **OC = OC_base** (≈ 1 %, from UNSODA — see §1.1):
-#
-# - WP(OC)  = WP\_ROSETTA + (ΔWP/100)·(OC − OC_base)
-# - AWC(OC) = AWC\_ROSETTA + (ΔAWC/100)·(OC − OC_base)   (AWC\_ROSETTA = FC − WP from ROSETTA)
-# - SAT(OC) = θₛ\_ROSETTA + (ΔSAT/100)·(OC − OC_base)
-# - FC(OC)  = WP + AWC  ;  **drainable = SAT − FC**
-#
-# We apply M&M's **WP, AWC and SAT** slopes — the three quantities that define the unavailable /
-# available / drainable bands — and *derive* FC = WP + AWC. This reproduces M&M's headline AWC
-# sensitivity exactly; the drainable response follows from ΔSAT − ΔFC. (Because M&M regressed each
-# property independently, ΔAWC ≠ ΔFC − ΔWP; anchoring on ΔFC instead would understate the AWC
-# response by ~25–50 %, especially in fine soils.)
-#
-# **Caveats.** (1) ROSETTA's prediction is a *nominal* baseline at **OC ≈ `OC_BASELINE_PCT`**
-# (≈ 1 %, from UNSODA — §1.1), not OC = 0; the M&M increments are applied relative to it, so the
-# slider's 0 % end is a truly organic-free mineral soil (drier than ROSETTA), clamped at ≥ 0.
-# (2) The BD and OC sliders
-# are **independent "what-if" axes**; in reality organic matter *lowers* bulk density (the
-# low-BD ↔ high-OC diagonal is the realistic region), and a low-BD + high-OC corner double-counts
-# porosity, so don't read the extreme corners as coupled predictions. (3) The modifier is
-# **linear**, whereas M&M found diminishing returns (largest gains 0→1 % OC), so it may overstate
-# gains at high OC; their data span OC < 10 %. (4) OM ≈ OC / 0.58 (van Bemmelen), so the 0–8 % OC
-# axis ≈ 0–14 % OM.
-
-# %% [markdown]
-# ### 1.1 Mineral-baseline organic carbon (from UNSODA 2.0)
+# ## 1. Mineral-baseline organic carbon (from UNSODA 2.0)
 #
 # ROSETTA has no OC input, but its training samples (UNSODA + others) are mineral-dominated
 # soils that *do* carry organic carbon — so the ROSETTA prediction is a **nominal baseline at
-# OC > 0**, not a true organic-free (OC = 0) soil. To pick a realistic anchor we examine the
-# 367 UNSODA 2.0 samples that report both bulk density and organic-matter content
-# (OC = 0.58·OM, van Bemmelen). OC falls clearly with bulk density (Pearson r ≈ −0.6). For the
-# mineral subset (OM ≤ 20 %): all-horizon mean ≈ 0.9 % OC; **mineral topsoil (≤15 cm) median
-# ≈ 1.1 % OC**. We therefore anchor ROSETTA at **`OC_BASELINE_PCT` (default 1.0 % OC)** and
-# apply the M&M increments *relative to that* baseline — so the slider's 0 % end is a truly
-# organic-free mineral soil (drier than ROSETTA) and OC ≈ 1 % reproduces ROSETTA.
+# OC > 0**, not a true organic-free (OC = 0) soil. Before blending in any organic-matter effect
+# (Section 2), we estimate that baseline OC from the 367 UNSODA 2.0 samples that report both bulk
+# density and organic-matter content (OC = 0.58·OM, van Bemmelen). OC falls clearly with bulk
+# density (Pearson r ≈ −0.6). For the mineral subset (OM ≤ 20 %): all-horizon mean ≈ 0.9 % OC;
+# **mineral topsoil (≤15 cm) median ≈ 1.1 % OC**. We anchor ROSETTA at **`OC_BASELINE_PCT`
+# (default 1.0 % OC)**; Section 2 then applies the M&M increments *relative to that* baseline.
 #
 # `data_temp/` is git-ignored; run `pixi run python notebooks/fetch_unsoda.py` to (re)create
 # the UNSODA extract read below.
@@ -120,7 +83,7 @@ result.head()
 # %%
 import os
 
-# Organic-carbon anchor for the ROSETTA mineral baseline (see §1.1 / UNSODA below).
+# Organic-carbon anchor for the ROSETTA mineral baseline (estimated below from UNSODA).
 # UNSODA mineral subset: all-horizon mean ~0.9 %, topsoil median ~1.1 % — round 1.0 % used here.
 OC_BASELINE_PCT = 1.0  # % organic carbon; adjust to taste
 
@@ -145,6 +108,48 @@ if os.path.exists(_unsoda_path):
 else:
     print(f"{_unsoda_path} not found — run `pixi run python notebooks/fetch_unsoda.py` to regenerate it.")
     print(f"Proceeding with the documented default OC_BASELINE_PCT = {OC_BASELINE_PCT} % OC.")
+
+# %% [markdown]
+# ## 2. ROSETTA + organic-matter modifier (Minasny & McBratney 2018)
+#
+# Keep **ROSETTA's** texture + bulk-density skill for the *mineral* soil baseline (Section 1),
+# then add the **empirical organic-carbon increments** from **Minasny & McBratney (2018) Table 2**
+# — an OC sensitivity derived from >50,000 measurements and preferred here over Saxton–Rawls
+# (see §3.1). Per **+1 % organic carbon** (= +10 g C kg⁻¹), by USDA texture group:
+#
+# | M&M group | ΔWP | ΔAWC | ΔSAT  (mm 100 mm⁻¹ per 1 % OC) |
+# | --- | --- | --- | --- |
+# | Coarse | 0.86 | 1.94 | 4.59 |
+# | Medium | 0.68 | 1.79 | 3.59 |
+# | Fine | 0.54 | 1.41 | 3.23 |
+#
+# **Blend** (volumetric, cm³/cm³); ROSETTA gives the baseline at the **mineral bulk density set
+# by the BD slider**, anchored at **OC = OC_base** (≈ 1 %, from UNSODA — see Section 1):
+#
+# - WP(OC)  = WP\_ROSETTA + (ΔWP/100)·(OC − OC_base)
+# - AWC(OC) = AWC\_ROSETTA + (ΔAWC/100)·(OC − OC_base)   (AWC\_ROSETTA = FC − WP from ROSETTA)
+# - SAT(OC) = θₛ\_ROSETTA + (ΔSAT/100)·(OC − OC_base)
+# - FC(OC)  = WP + AWC  ;  **drainable = SAT − FC**
+#
+# We apply M&M's **WP, AWC and SAT** slopes — the three quantities that define the unavailable /
+# available / drainable bands — and *derive* FC = WP + AWC. This reproduces M&M's headline AWC
+# sensitivity exactly; the drainable response follows from ΔSAT − ΔFC. (Because M&M regressed each
+# property independently, ΔAWC ≠ ΔFC − ΔWP; anchoring on ΔFC instead would understate the AWC
+# response by ~25–50 %, especially in fine soils.)
+#
+# **Caveats.** (1) ROSETTA's prediction is a *nominal* baseline at **OC ≈ `OC_BASELINE_PCT`**
+# (≈ 1 %, from UNSODA — Section 1), not OC = 0; the M&M increments are applied relative to it, so
+# the slider's 0 % end is a truly organic-free mineral soil (drier than ROSETTA), clamped at ≥ 0.
+# (2) The BD and OC sliders
+# are **independent "what-if" axes**; in reality organic matter *lowers* bulk density (the
+# low-BD ↔ high-OC diagonal is the realistic region), and a low-BD + high-OC corner double-counts
+# porosity, so don't read the extreme corners as coupled predictions. (3) The modifier is
+# **linear**, whereas M&M found diminishing returns (largest gains 0→1 % OC), so it may overstate
+# gains at high OC; their data span OC < 10 %. (4) OM ≈ OC / 0.58 (van Bemmelen); the line-plot OC
+# axis is capped at 5 % (≈ 8.6 % OM) and the diagram's OM slider spans 0–8 %. (5) In the diagram,
+# texture columns are **greyed** where the blended
+# saturation exceeds the BD-implied pore space (1 − BD/2.65) — physically impossible, i.e.
+# extrapolation at that BD × OM (mirrors Notebook 1's `implausible_bd` flag).
 
 # %%
 # ROSETTA mineral baseline (per bulk density) + additive Minasny & McBratney (2018) OC
@@ -197,62 +202,73 @@ for bd in bulk_densities:
             )
 blend_df = pd.DataFrame(blend_rows)
 blend_df["texture_class"] = pd.Categorical(blend_df["texture_class"], categories=list(TEXTURE_CLASSES), ordered=True)
+# order each (BD, texture) series ascending in OC, then flag extrapolation: a blended saturation
+# exceeding the BD-implied pore space (1 - BD/2.65) is physically impossible (greyed in the plots).
+blend_df = blend_df.sort_values(["bulk_density_g_cm3", "texture_class", "oc_pct"]).reset_index(drop=True)
+blend_df["implausible"] = blend_df["total_porosity"] > (1.0 - blend_df["bulk_density_g_cm3"] / 2.65)
+_blend_grp = blend_df.groupby(["bulk_density_g_cm3", "texture_class"], observed=True, sort=False)["implausible"]
+_blend_extrap_mask = blend_df["implausible"] | _blend_grp.shift(-1).fillna(False)  # keep boundary so segments join
 
 print(f"{len(blend_df)} rows  ({len(TEXTURE_CLASSES)} textures x {len(bulk_densities)} BD x {len(oc_values)} OC)")
 blend_df[(blend_df["bulk_density_g_cm3"] == 1.5) & (blend_df["oc_pct"].isin([0.0, 2.0, 4.0]))].round(3).head(24)
 
 # %%
 # AVAILABLE water capacity vs. organic carbon, one line per texture class, with a BD slider.
+# Each line is solid where plausible and grey-dashed where the (BD, OC) state is an extrapolation
+# (blended saturation > 1 - BD/2.65); the greyed region grows as the BD slider increases.
 hv.output(widget_location="bottom")
 
 om8_oc = 8.0 * VB  # 8% OM ≈ 4.64% OC marks the top of the primary range
 
-awc_lines = blend_df.hvplot.line(
-    x="oc_pct",
-    y="available_water_capacity",
-    by="texture_class",
-    groupby="bulk_density_g_cm3",
-    dynamic=False,
-    xlabel="soil organic carbon (% by weight)   [OM ≈ OC / 0.58]",
-    ylabel="available water capacity (cm³/cm³)",
-    title="ROSETTA + M&M blend: AVAILABLE water vs. organic carbon — {dimensions}",
-    width=820,
-    height=500,
-    legend="right",
-    grid=True,
-    ylim=(0, 0.42),
+
+def blend_line(ycol, ylabel, title, ylim):
+    common = dict(
+        x="oc_pct", y=ycol, by="texture_class", groupby="bulk_density_g_cm3",
+        dynamic=False, width=820, height=500, xlim=(0, 5), ylim=ylim,
+    )
+    solid = blend_df.assign(**{ycol: blend_df[ycol].where(~blend_df["implausible"])}).hvplot.line(
+        xlabel="soil organic carbon (% by weight)   [OM ≈ OC / 0.58]",
+        ylabel=ylabel, title=title, legend="right", grid=True, **common,
+    )
+    dashed = (
+        blend_df.assign(**{ycol: blend_df[ycol].where(_blend_extrap_mask)})
+        .hvplot.line(**common)
+        .opts(hv.opts.Curve(color="lightgray", line_dash="dashed", alpha=0.9))
+        .opts(show_legend=False)
+    )
+    y_lab = ylim[1]  # labels just below the top of the plot
+    refs = (
+        hv.VLine(OC_BASELINE_PCT).opts(color="firebrick", line_dash="dashed", line_width=1)  # baseline OC
+        * hv.VLine(om8_oc).opts(color="black", line_dash="dotted", line_width=1)              # 8% OM
+        * hv.Text(OC_BASELINE_PCT, y_lab, " ROSETTA baseline OC ≈ 1%", halign="left", valign="top").opts(
+            text_color="firebrick", text_font_size="8pt")
+        * hv.Text(om8_oc, y_lab, "8% OM ", halign="right", valign="top").opts(
+            text_color="black", text_font_size="8pt")
+    )
+    return (solid * dashed * refs).redim(
+        bulk_density_g_cm3=hv.Dimension("Bulk density (g/cm³)", value_format=lambda v: f"{v:.1f}")
+    )
+
+
+blend_line(
+    "available_water_capacity",
+    "available water capacity (cm³/cm³)",
+    "ROSETTA + M&M blend: AVAILABLE water vs. organic carbon — {dimensions}",
+    (0, 0.42),
 )
-(
-    awc_lines
-    * hv.VLine(OC_BASELINE_PCT).opts(color="firebrick", line_dash="dashed", line_width=1)  # ROSETTA baseline OC
-    * hv.VLine(om8_oc).opts(color="black", line_dash="dotted", line_width=1)               # 8% OM
-).redim(bulk_density_g_cm3=hv.Dimension("Bulk density (g/cm³)", value_format=lambda v: f"{v:.1f}"))
 
 # %%
 # DRAINABLE water (saturation − field capacity) vs. organic carbon — the rapidly draining pore
-# space that matters for stormwater storage / infiltration. BD slider.
+# space that matters for stormwater storage / infiltration. BD slider; extrapolated (BD, OC)
+# states are grey-dashed (same flag as the AVAILABLE-water plot above).
 hv.output(widget_location="bottom")
 
-drain_lines = blend_df.hvplot.line(
-    x="oc_pct",
-    y="drainable_water",
-    by="texture_class",
-    groupby="bulk_density_g_cm3",
-    dynamic=False,
-    xlabel="soil organic carbon (% by weight)   [OM ≈ OC / 0.58]",
-    ylabel="drainable water  SAT − FC  (cm³/cm³)",
-    title="ROSETTA + M&M blend: DRAINABLE water vs. organic carbon — {dimensions}",
-    width=820,
-    height=500,
-    legend="right",
-    grid=True,
-    ylim=(0, 0.60),
+blend_line(
+    "drainable_water",
+    "drainable water  SAT − FC  (cm³/cm³)",
+    "ROSETTA + M&M blend: DRAINABLE water vs. organic carbon — {dimensions}",
+    (0, 0.60),
 )
-(
-    drain_lines
-    * hv.VLine(OC_BASELINE_PCT).opts(color="firebrick", line_dash="dashed", line_width=1)  # ROSETTA baseline OC
-    * hv.VLine(om8_oc).opts(color="black", line_dash="dotted", line_width=1)               # 8% OM
-).redim(bulk_density_g_cm3=hv.Dimension("Bulk density (g/cm³)", value_format=lambda v: f"{v:.1f}"))
 
 # %%
 # FAO-style transposed diagram for the ROSETTA + M&M blend, with TWO sliders: mineral bulk
@@ -299,7 +315,15 @@ def _blend_profile(bd, om):
         * hv.Text(5, (pwp[5] + fc[5]) / 2, "Available water").opts(text_color="darkgreen", text_font_size="10pt")
         * hv.Text(2.2, (fc[2] + por[2]) / 2, "Drainable\nwater").opts(text_color="navy", text_font_size="10pt")
     )
-    return bands * lines * labels
+    overlay = bands
+    # grey out columns where the blended saturation exceeds the BD-implied pore space
+    # (1 - BD/2.65): physically impossible -> extrapolation at this BD × OM combination.
+    implausible = (por / INCHES_PER_FOOT) > (1.0 - bd / 2.65)
+    if implausible.any():
+        overlay = overlay * hv.Overlay(
+            [hv.VSpan(xi - 0.5, xi + 0.5).opts(color="gray", alpha=0.2) for xi in x[implausible]]
+        )
+    return overlay * lines * labels
 
 
 blend_profiles = hv.HoloMap(
@@ -324,15 +348,14 @@ blend_profiles.opts(
 )
 
 # %% [markdown]
-# ## 2. Organic-matter sensitivity (Saxton–Rawls 2006)
+# ## 3. Organic-matter sensitivity (Saxton–Rawls 2006)
 #
-# An independent alternative to Section 1's blend: the **Saxton & Rawls (2006)** pedotransfer
+# An independent alternative to Section 2's blend: the **Saxton & Rawls (2006)** pedotransfer
 # functions, which take **sand, clay, and organic-matter %** directly and were developed from
-# USDA/NRCS data for the continental USA. Self-contained (no ROSETTA baseline) — though (see §2.1)
+# USDA/NRCS data for the continental USA. Self-contained (no ROSETTA baseline) — though (see §3.1)
 # it gives a smaller, and for clays negative, OC effect than Minasny & McBratney.
 #
-# Calibrated for **OM ≤ 8 % by weight** (≈ 4.6 % organic carbon); values above that are shown but
-# **flagged as extrapolation**.
+# Restricted to its calibrated range, **OM ≤ 8 % by weight** (≈ 4.6 % organic carbon).
 
 # %%
 def saxton_rawls(sand_frac, clay_frac, om_pct):
@@ -354,7 +377,7 @@ def saxton_rawls(sand_frac, clay_frac, om_pct):
 
 
 OM_VALID_MAX = 8.0  # Saxton–Rawls organic-matter calibration limit (% by weight)
-om_values = np.round(np.arange(0.0, 15.0 + 1e-9, 1.0), 1)  # 0–15 %, 1 % steps
+om_values = np.round(np.arange(0.0, OM_VALID_MAX + 1e-9, 1.0), 1)  # 0–8 %, 1 % steps (calibrated range)
 
 sr_rows = []
 for om in om_values:
@@ -370,7 +393,6 @@ for om in om_values:
                 "total_porosity": por,
                 "available_water_capacity": fc - pwp,
                 "drainable_water": por - fc,
-                "within_validity": om <= OM_VALID_MAX,
             }
         )
 sr_df = pd.DataFrame(sr_rows)
@@ -380,14 +402,9 @@ print(f"{len(sr_df)} rows  ({len(TEXTURE_CLASSES)} textures x {len(om_values)} O
 sr_df[sr_df["om_pct"].isin([0.0, 2.0, 4.0, 8.0])].head(20)
 
 # %%
-# Saxton–Rawls AVAILABLE and DRAINABLE water vs. organic matter, one line per texture class.
-# Shaded band / dashed line mark the 8% OM calibration limit (extrapolation beyond).
+# Saxton–Rawls AVAILABLE and DRAINABLE water vs. organic matter, one line per texture class,
+# over the calibrated 0–8 % OM range.
 hv.output(widget_location="right")
-
-sr_flag = (
-    hv.VSpan(OM_VALID_MAX, float(sr_df["om_pct"].max())).opts(color="gray", alpha=0.12)
-    * hv.VLine(OM_VALID_MAX).opts(color="black", line_dash="dashed", line_width=1)
-)
 
 sr_awc = sr_df.hvplot.line(
     x="om_pct", y="available_water_capacity", by="texture_class",
@@ -403,11 +420,10 @@ sr_drain = sr_df.hvplot.line(
     title="Saxton–Rawls: DRAINABLE water vs. organic matter",
     width=820, height=460, legend="right", grid=True, ylim=(0, 0.45),
 )
-((sr_awc * sr_flag) + (sr_drain * sr_flag)).cols(1)
+(sr_awc + sr_drain).cols(1)
 
 # %%
-# FAO-style transposed diagram, Saxton–Rawls, with an organic-matter slider.
-# Frames above 8% OM are annotated as extrapolation.
+# FAO-style transposed diagram, Saxton–Rawls, with an organic-matter slider (calibrated 0–8 % OM).
 hv.output(widget_location="bottom")
 
 
@@ -438,12 +454,7 @@ def _sr_profile(om):
         * hv.Text(5, (pwp[5] + fc[5]) / 2, "Available water").opts(text_color="darkgreen", text_font_size="10pt")
         * hv.Text(2.2, (fc[2] + por[2]) / 2, "Drainable\nwater").opts(text_color="navy", text_font_size="10pt")
     )
-    overlay = bands * lines * labels
-    if om > OM_VALID_MAX:
-        overlay = overlay * hv.Text(6, 9.5, "⚠ extrapolated beyond 8% OM calibration").opts(
-            text_color="red", text_font_size="9pt"
-        )
-    return overlay
+    return bands * lines * labels
 
 
 sr_profiles = hv.HoloMap(
@@ -465,7 +476,7 @@ sr_profiles.opts(
 )
 
 # %% [markdown]
-# ### 2.1 Validation: ΔAWC/ΔOC vs. Minasny & McBratney (2018)
+# ### 3.1 Validation: ΔAWC/ΔOC vs. Minasny & McBratney (2018)
 #
 # Do the two PTF families agree on how much available water organic carbon adds? We compute the
 # Saxton–Rawls **ΔAWC per +1 % organic carbon** for each texture class — over the same
@@ -476,7 +487,7 @@ sr_profiles.opts(
 # coarse to fine textures, but **Saxton–Rawls is systematically lower** and turns **negative for
 # clays** — a known feature of the Rawls/Saxton–Rawls lineage (M&M note their neural net "did not
 # show a negative effect with an increase in OC for clay content larger than 60 %"). This is why
-# Section 1 builds the blend on the M&M increments rather than Saxton–Rawls.
+# Section 2 builds the blend on the M&M increments rather than Saxton–Rawls.
 
 # %%
 # Saxton–Rawls ΔAWC/ΔOC vs. Minasny & McBratney (2018) Table 2.

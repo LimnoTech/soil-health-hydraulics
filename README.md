@@ -8,7 +8,7 @@ functions, with interactive HoloViews/Bokeh visualizations. All notebooks live i
 
 | Notebook | Purpose |
 | --- | --- |
-| [notebooks/1_rosetta_porosity_by_texture.ipynb](notebooks/1_rosetta_porosity_by_texture.ipynb) | **ROSETTA texture × bulk-density baseline** — total porosity, field capacity, wilting point, available & drainable water for each texture class across bulk densities 0.8–2.0 g/cm³. Writes `rosetta_porosity_by_texture.csv`. |
+| [notebooks/1_rosetta_porosity_by_texture.ipynb](notebooks/1_rosetta_porosity_by_texture.ipynb) | **ROSETTA texture × bulk-density baseline** — total porosity, field capacity, wilting point, available & drainable water, and saturated hydraulic conductivity (Ksat) for each texture class across bulk densities 0.8–1.9 g/cm³. Writes `rosetta_porosity_by_texture.csv`. |
 | [notebooks/2_organic_matter_water_holding.ipynb](notebooks/2_organic_matter_water_holding.ipynb) | **Organic-matter effects** — layers SOM/SOC sensitivity on top, two ways: a ROSETTA + Minasny–McBratney (2018) blend (anchored to a UNSODA-derived mineral-baseline OC), and Saxton–Rawls (2006). **Reads the CSV from the first notebook.** |
 
 **Run order:** execute `1_rosetta_porosity_by_texture.ipynb` first (it generates
@@ -37,17 +37,18 @@ kernel.
 
 Uses the [Rosetta](https://github.com/usda-ars-ussl/rosetta-soil) pedotransfer functions to
 estimate, for every USDA soil texture class (using representative *median* sand/silt/clay values)
-and for bulk densities from 0.8 to 2.0 g/cm³ in 0.1 steps:
+and for bulk densities from 0.8 to 1.9 g/cm³ in 0.1 steps:
 
 - **Total porosity** — saturated volumetric water content θₛ
 - **Field-capacity porosity** — volumetric water content at 33 kPa (330 cm suction)
 - **Permanent-wilting-point porosity** — volumetric water content at 1500 kPa (15000 cm suction)
 - **Available water capacity** — field capacity minus wilting point
 - **Drainable water** — saturation minus field capacity (shown in the band plots)
+- **Saturated hydraulic conductivity** — Rosetta Ksat, as `ksat_cm_day` (cm/day) and `ksat_in_hr` (in/hr, stormwater units); §6 plots it vs. bulk density on a log axis
 
 Each output table also carries an **NRCS hydrologic soil group** (A–D) column, inferred from
-texture class (see caveat below). Output is a 156-row DataFrame (12 texture classes × 13 bulk
-densities), written to `notebooks/rosetta_porosity_by_texture.csv`. Sections 6–8 add interactive
+texture class (see caveat below). Output is a 144-row DataFrame (12 texture classes × 12 bulk
+densities, 0.8–1.9 g/cm³), written to `notebooks/rosetta_porosity_by_texture.csv`. Sections 6–8 add interactive
 plots (porosity/FC/WP vs. BD; a stacked-bar partition with a BD slider; and a transposed
 FAO-style line/area diagram in inches of water per foot of soil).
 
@@ -71,8 +72,14 @@ FAO-style line/area diagram in inches of water per foot of soil).
   `TEXTURE_CLASSES` dict; swap for the Levi (2017) modified-centroid values if you prefer
   that convention.
 - **Bulk-density sweep** — Rosetta was trained on realistic texture + density combinations,
-  so the extremes (e.g. clay at 0.8 or sand at 2.0 g/cm³) are extrapolations: plausible-looking
-  but outside the well-constrained range.
+  so the extremes (e.g. clay at 0.8 or sand at 1.9 g/cm³) are extrapolations: plausible-looking
+  but outside the well-constrained range. (The sweep is capped at **1.9 g/cm³** — BD 2.0 is
+  implausible for most textures.) The **`implausible_bd`** column flags cells where
+  Rosetta's θₛ exceeds the BD-implied pore space (1 − BD/2.65) — i.e. physically impossible, hence
+  extrapolation. The flag propagates through the visuals: **grey dashed tails** in the §6 line plots
+  (clearest symptom: the spurious **high-BD Ksat upturn** for fine textures like silt — a
+  neural-network artifact, not a real rise in conductivity), a red **⚠** on flagged bars in §7, and
+  **greyed texture columns** in the §8 band diagram and in Notebook 2's BD-sensitive blend diagram.
 - **Hydrologic soil group (HSG)** — each row is tagged with an NRCS HSG (A–D) immediately to
   the right of `texture_class`, via the `HYDROLOGIC_SOIL_GROUP` mapping:
 
@@ -105,19 +112,21 @@ the organic-matter dimension on top of the ROSETTA baseline, with **available wa
 plant-available) and **drainable water** (SAT − FC, the fast-draining pore space relevant to
 **stormwater** storage/infiltration) given equal billing.
 
-- **Section 1 — ROSETTA + Minasny & McBratney (2018) blend (recommended).** Keeps ROSETTA's
+- **Section 1 — Mineral-baseline organic carbon (UNSODA 2.0).** Estimates the organic carbon
+  implicit in ROSETTA's mineral baseline from the 367 UNSODA 2.0 samples reporting both BD and OM
+  (≈ 1 % OC; OC declines with BD, r ≈ −0.6) and sets `OC_BASELINE_PCT` — the anchor for the blend.
+- **Section 2 — ROSETTA + Minasny & McBratney (2018) blend (recommended).** Keeps ROSETTA's
   texture + bulk-density skill for the mineral baseline, then adds M&M's empirical organic-carbon
   increments (Table 2 ΔWP / ΔAWC / ΔSAT slopes, by coarse/medium/fine texture group). We apply the
   WP, AWC and SAT slopes and derive FC = WP + AWC, so the blend reproduces M&M's headline AWC
-  sensitivity exactly. **§1.1** estimates the mineral-baseline organic carbon from UNSODA 2.0
-  (≈ 1 % OC; OC declines with BD, r ≈ −0.6) and the increments are applied *relative to that*
-  baseline rather than from 0 % OC. The FAO-style diagram has **two sliders — mineral bulk density
-  and organic matter (0–8 %)** — plus dedicated AWC- and drainable-vs-OC line plots.
-- **Section 2 — Saxton & Rawls (2006).** An independent, self-contained PTF taking sand/clay/OM
+  sensitivity exactly, applied *relative to* the Section 1 baseline OC rather than from 0 % OC. The
+  FAO-style diagram has **two sliders — mineral bulk density and organic matter (0–8 %)** — plus
+  dedicated AWC- and drainable-vs-OC line plots.
+- **Section 3 — Saxton & Rawls (2006).** An independent, self-contained PTF taking sand/clay/OM
   directly (calibrated for OM ≤ 8 %; higher OM flagged as extrapolation), with AWC and drainable
-  line plots and an OM-slider diagram. **§2.1 validates** its OC sensitivity against M&M and shows
+  line plots and an OM-slider diagram. **§3.1 validates** its OC sensitivity against M&M and shows
   it runs systematically lower — and negative for clays (a known Rawls-lineage behaviour) — which
-  is why Section 1 builds the blend on the M&M increments rather than Saxton–Rawls.
+  is why Section 2 builds the blend on the M&M increments rather than Saxton–Rawls.
 
 ### Key methodologies (organic matter)
 
@@ -125,7 +134,7 @@ plant-available) and **drainable water** (SAT − FC, the fast-draining pore spa
   coarse ΔWP/ΔAWC/ΔSAT = 0.86/1.94/4.59; medium 0.68/1.79/3.59; fine 0.54/1.41/3.23. Note
   1.16 mm 100 mm⁻¹ = 0.0116 cm³/cm³, so the per-1 %-OC AWC effect is ~0.01–0.02 cm³/cm³ — modest,
   largest in sands, smallest/negative in clays, while saturation (and drainable water) rises more.
-- **Mineral-baseline OC (UNSODA)** — §1.1 reads `data_temp/unsoda_bd_om.csv` (367 UNSODA 2.0
+- **Mineral-baseline OC (UNSODA)** — §1 reads `data_temp/unsoda_bd_om.csv` (367 UNSODA 2.0
   samples reporting both BD and OM) to justify the anchor: mineral all-horizon mean ≈ 0.9 % OC,
   topsoil median ≈ 1.1 %, with OC declining as BD rises (r ≈ −0.6). Default `OC_BASELINE_PCT = 1.0`.
 - **Baseline & sliders** — ROSETTA's prediction is a *nominal* baseline at OC ≈ `OC_BASELINE_PCT`
@@ -138,7 +147,7 @@ plant-available) and **drainable water** (SAT − FC, the fast-draining pore spa
 
 ### Data & reproducibility (UNSODA)
 
-The §1.1 mineral-baseline estimate uses **UNSODA 2.0** (Nemes et al., 2001), distributed as a
+The §1 mineral-baseline estimate uses **UNSODA 2.0** (Nemes et al., 2001), distributed as a
 Microsoft Access database. [`notebooks/fetch_unsoda.py`](notebooks/fetch_unsoda.py) downloads it,
 exports the `soil_properties` and `general` tables, and writes the tidy extract used by the
 notebook:
@@ -150,7 +159,7 @@ pixi run python notebooks/fetch_unsoda.py    # -> notebooks/data_temp/unsoda_bd_
 - `notebooks/data_temp/` is **git-ignored** scratch (the UNSODA `.mdb` and derived CSV live there).
 - Requires **`mdbtools`** on PATH to read the `.mdb` (not on conda-forge for osx-arm64; macOS:
   `brew install mdbtools`).
-- If the extract is absent, Notebook 2 still runs — §1.1 skips its scatter plot and falls back to
+- If the extract is absent, Notebook 2 still runs — §1 skips its scatter plot and falls back to
   the documented default `OC_BASELINE_PCT`.
 
 ---
