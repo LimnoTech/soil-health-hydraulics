@@ -6,6 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
+#       jupytext_version: 1.19.2
 #   kernelspec:
 #     display_name: default
 #     language: python
@@ -142,7 +143,7 @@ line_with_extrapolation(
 hv.output(widget_location="bottom")
 
 # K(h) over a log-spaced suction grid for every texture × bulk density
-_suction = np.logspace(0.0, np.log10(15000.0), 60)  # 1 .. 15000 cm
+_suction = np.logspace(0.0, np.log10(15000.0), 36)  # 1 .. 15000 cm (log-spaced; 36 pts render identically on the log-log axis)
 _kh_rows = []
 for r in result.itertuples():
     K = mualem_k(_suction, r.vg_alpha_1cm, r.vg_n, r.k0_cm_day, r.mualem_L)  # cm/day
@@ -195,7 +196,9 @@ RAWLS_PSI_F_CM = {
     "silty clay loam": 27.30, "sandy clay": 23.90, "silty clay": 29.22, "clay": 31.63,
 }
 GA_T_MAX_HR = 2.0  # plot the first 2 hours
-_F_grid = np.linspace(0.2, 80.0, 500)  # cumulative infiltration, cm
+# Geometric (log) spacing keeps the early-time / small-F detail dense — where slow soils
+# spend the whole 2-hour window — while using far fewer points than a uniform grid.
+_F_grid = np.geomspace(0.2, 80.0, 120)  # cumulative infiltration, cm
 
 _ga_rows = []
 for r in result.itertuples():

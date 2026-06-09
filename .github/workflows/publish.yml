@@ -1,0 +1,51 @@
+name: Publish site
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Permissions required by actions/deploy-pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment; cancel older in-progress runs
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up pixi
+        uses: prefix-dev/setup-pixi@v0.9.6
+        with:
+          environments: default
+          # Cache the solved env keyed on pixi.lock for fast rebuilds
+          cache: true
+
+      - name: Build site
+        # Renders committed notebook outputs to HTML (code hidden) with nbconvert,
+        # preserving the embedded interactive Bokeh plots. Does not re-execute notebooks.
+        run: pixi run build-site
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

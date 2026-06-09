@@ -2,10 +2,13 @@
 authors = ["Anthony Aufdenkampe <aaufdenkampe@limno.com>"]
 channels = ["conda-forge"]
 name = "soil-health-hydraulics"
-platforms = ["osx-arm64", "win-64"]
+platforms = ["osx-arm64", "win-64", "linux-64"]
 version = "0.1.0"
 
 [tasks]
+# Build the static website into _site/ (renders notebooks to HTML with code hidden,
+# preserving the embedded interactive Bokeh plots; injects shared nav + landing page).
+build-site = "python build_site.py"
 
 [dependencies]
 python = ">=3.14.5,<3.15"
@@ -17,6 +20,7 @@ matplotlib = ">=3.10.9,<4"
 hvplot = ">=0.12.2,<0.13"
 jupytext = ">=1.19.3,<2"
 jupyter_bokeh = ">=4.0.5,<5"
+nbconvert = ">=7.16,<8"
 
 [pypi-dependencies]
 rosetta-soil = ">=0.3.2, <0.4"

@@ -34,6 +34,31 @@ kernel.
 
 ---
 
+## Interactive website (GitHub Pages)
+
+The notebooks are published as a static, **fully interactive** website — readers can move the
+bulk-density / organic-matter sliders, hover, pan, and zoom right in the browser, with no install:
+
+**<https://limnotech.github.io/soil-health-hydraulics/>**
+
+### How it works
+
+- [`build_site.py`](build_site.py) renders each notebook to HTML with
+  `jupyter nbconvert --to html --no-input` (**code hidden**), which preserves the notebooks'
+  self-contained Bokeh/HoloViews embeds, then injects a shared navigation bar and a landing page
+  into `_site/`. Build locally with **`pixi run build-site`** and open `_site/index.html`.
+- The site uses the notebooks' **committed outputs** — the build does *not* re-execute them, so it
+  needs neither the (git-ignored) UNSODA data nor Homebrew `mdbtools`. Re-run the notebooks
+  yourself (Notebook 1 first) whenever the results change, then rebuild.
+- [`.github/workflows/publish.yml`](.github/workflows/publish.yml) rebuilds and deploys on every
+  push to `main`, using the same pixi environment.
+
+> [!NOTE]
+> nbconvert is used instead of a site generator such as Quarto because Quarto's pandoc pipeline
+> strips the pre-executed HoloViews/Bokeh embeds; nbconvert keeps them verbatim.
+
+---
+
 ## Notebook 1 — ROSETTA porosity by texture and bulk density
 
 Uses the [Rosetta](https://github.com/usda-ars-ussl/rosetta-soil) pedotransfer functions to
