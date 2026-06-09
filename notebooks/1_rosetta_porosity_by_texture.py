@@ -38,8 +38,22 @@
 import numpy as np
 import pandas as pd
 from rosetta import rosetta, SoilData
+from IPython.display import HTML
 
 pd.set_option("display.float_format", lambda v: f"{v:0.3f}")
+
+
+def show(df, height=360):
+    """Display the *full* DataFrame in a fixed-height, scrollable box — renders the same in
+    JupyterLab and in the exported HTML site (`to_html` emits every row and respects the
+    float_format set above)."""
+    return HTML(
+        "<style>.scroll-df thead th{position:sticky;top:0;background:#fff;"
+        "box-shadow:inset 0 -1px 0 #ccc;}</style>"
+        f'<div class="scroll-df" style="max-height:{height}px;overflow:auto;'
+        'border:1px solid #ddd;border-radius:4px;">'
+        f"{df.to_html()}</div>"
+    )
 
 # %% [markdown]
 # ## 1. Representative (median) texture values for each USDA class
@@ -94,7 +108,7 @@ texture_df.insert(1, "hydrologic_soil_group", texture_df["texture_class"].map(HY
 
 # sanity check: each class sums to 100%
 assert (texture_df[["sand_pct", "silt_pct", "clay_pct"]].sum(axis=1) == 100).all()
-texture_df
+show(texture_df)
 
 # %% [markdown]
 # ## 2. Bulk-density range and suction set-points
@@ -211,7 +225,7 @@ PARTICLE_DENSITY = 2.65  # g/cm³, quartz-dominated mineral soil
 df["implausible_bd"] = df["total_porosity"] > (1.0 - df["bulk_density_g_cm3"] / PARTICLE_DENSITY)
 
 print(f"{len(df)} rows  ({len(TEXTURE_CLASSES)} classes x {len(bulk_densities)} bulk densities)")
-df.head(15)
+show(df)
 
 # %% [markdown]
 # ## 5. Results
@@ -240,7 +254,7 @@ result = df[[
     "implausible_bd",
 ]].copy()
 
-result
+show(result)
 
 # %%
 # Save to CSV
@@ -402,7 +416,7 @@ marks_hmap = hv.HoloMap({bd: _implausible_marks(bd) for bd in bulk_densities}, k
 
 # readable slider/title label + consistent one-decimal bulk density
 (hmap * marks_hmap).redim(
-    bulk_density_g_cm3=hv.Dimension("Bulk density (g/cm³)", value_format=lambda v: f"{v:.1f}")
+    bulk_density_g_cm3=hv.Dimension("Bulk density, g/cm³ (higher is more compacted)", default=1.4, value_format=lambda v: f"{v:.1f}")
 )
 
 # %% [markdown]
@@ -472,7 +486,7 @@ def _water_profile(bd):
 
 profiles = hv.HoloMap(
     {bd: _water_profile(bd) for bd in bulk_densities},
-    kdims=[hv.Dimension("Bulk density (g/cm³)", value_format=lambda v: f"{v:.1f}")],
+    kdims=[hv.Dimension("Bulk density, g/cm³ (higher is more compacted)", default=1.4, value_format=lambda v: f"{v:.1f}")],
 )
 
 profiles.opts(

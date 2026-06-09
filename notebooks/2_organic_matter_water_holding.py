@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.2
+#       jupytext_version: 1.19.3
 #   kernelspec:
 #     display_name: default
 #     language: python
@@ -40,8 +40,22 @@ import numpy as np
 import pandas as pd
 import hvplot.pandas  # noqa: F401  (registers the .hvplot accessor)
 import holoviews as hv
+from IPython.display import HTML
 
 pd.set_option("display.float_format", lambda v: f"{v:0.3f}")
+
+
+def show(df, height=360):
+    """Display the *full* DataFrame in a fixed-height, scrollable box — renders the same in
+    JupyterLab and in the exported HTML site (`to_html` emits every row and respects the
+    float_format set above)."""
+    return HTML(
+        "<style>.scroll-df thead th{position:sticky;top:0;background:#fff;"
+        "box-shadow:inset 0 -1px 0 #ccc;}</style>"
+        f'<div class="scroll-df" style="max-height:{height}px;overflow:auto;'
+        'border:1px solid #ddd;border-radius:4px;">'
+        f"{df.to_html()}</div>"
+    )
 
 # ROSETTA texture × bulk-density baseline produced by rosetta_porosity_by_texture.ipynb
 result = pd.read_csv("rosetta_porosity_by_texture.csv")
@@ -63,7 +77,7 @@ texture_ticks = [(i, f"{cls} ({HYDROLOGIC_SOIL_GROUP[cls]})") for cls, i in text
 INCHES_PER_FOOT = 12.0  # volumetric water content (cm3/cm3) -> inches per foot of soil depth
 
 print(f"loaded {len(result)} ROSETTA rows: {len(TEXTURE_CLASSES)} textures x {len(bulk_densities)} bulk densities")
-result.head()
+show(result)
 
 # %% [markdown]
 # ## 1. Mineral-baseline organic carbon (from UNSODA 2.0)
@@ -210,7 +224,7 @@ _blend_grp = blend_df.groupby(["bulk_density_g_cm3", "texture_class"], observed=
 _blend_extrap_mask = blend_df["implausible"] | _blend_grp.shift(-1).fillna(False)  # keep boundary so segments join
 
 print(f"{len(blend_df)} rows  ({len(TEXTURE_CLASSES)} textures x {len(bulk_densities)} BD x {len(oc_values)} OC)")
-blend_df[(blend_df["bulk_density_g_cm3"] == 1.5) & (blend_df["oc_pct"].isin([0.0, 2.0, 4.0]))].round(3).head(24)
+show(blend_df[(blend_df["bulk_density_g_cm3"] == 1.5) & (blend_df["oc_pct"].isin([0.0, 2.0, 4.0]))].round(3))
 
 # %%
 # AVAILABLE water capacity vs. organic carbon, one line per texture class, with a BD slider.
@@ -246,7 +260,7 @@ def blend_line(ycol, ylabel, title, ylim):
             text_color="black", text_font_size="8pt")
     )
     return (solid * dashed * refs).redim(
-        bulk_density_g_cm3=hv.Dimension("Bulk density (g/cm³)", value_format=lambda v: f"{v:.1f}")
+        bulk_density_g_cm3=hv.Dimension("Bulk density, g/cm³ (higher is more compacted)", default=1.4, value_format=lambda v: f"{v:.1f}")
     )
 
 
@@ -329,8 +343,8 @@ def _blend_profile(bd, om):
 blend_profiles = hv.HoloMap(
     {(bd, om): _blend_profile(bd, om) for bd in bulk_densities for om in om_grid},
     kdims=[
-        hv.Dimension("Bulk density (g/cm³)", value_format=lambda v: f"{v:.1f}"),
-        hv.Dimension("Organic matter (% by weight)", value_format=lambda v: f"{v:.1f}"),
+        hv.Dimension("Bulk density, g/cm³ (higher is more compacted)", default=1.4, value_format=lambda v: f"{v:.1f}"),
+        hv.Dimension("Organic matter (% by weight)", default=2.0, value_format=lambda v: f"{v:.1f}"),
     ],
 )
 
@@ -399,7 +413,7 @@ sr_df = pd.DataFrame(sr_rows)
 sr_df["texture_class"] = pd.Categorical(sr_df["texture_class"], categories=list(TEXTURE_CLASSES), ordered=True)
 
 print(f"{len(sr_df)} rows  ({len(TEXTURE_CLASSES)} textures x {len(om_values)} OM levels)")
-sr_df[sr_df["om_pct"].isin([0.0, 2.0, 4.0, 8.0])].head(20)
+show(sr_df[sr_df["om_pct"].isin([0.0, 2.0, 4.0, 8.0])])
 
 # %%
 # Saxton–Rawls AVAILABLE and DRAINABLE water vs. organic matter, one line per texture class,
@@ -459,7 +473,7 @@ def _sr_profile(om):
 
 sr_profiles = hv.HoloMap(
     {om: _sr_profile(om) for om in om_values},
-    kdims=[hv.Dimension("Soil organic matter (% by weight)", value_format=lambda v: f"{v:.1f}")],
+    kdims=[hv.Dimension("Soil organic matter (% by weight)", default=2.0, value_format=lambda v: f"{v:.1f}")],
 )
 
 sr_profiles.opts(
