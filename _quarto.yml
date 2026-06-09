@@ -20,11 +20,11 @@ website:
     left:
       - href: index.qmd
         text: Home
-      - href: notebooks/1_rosetta_porosity_by_texture.ipynb
+      - href: notebooks/1_rosetta_porosity_by_texture.html
         text: "1 · Porosity by texture"
-      - href: notebooks/2_organic_matter_water_holding.ipynb
+      - href: notebooks/2_organic_matter_water_holding.html
         text: "2 · Organic matter"
-      - href: notebooks/3_rosetta_hydraulic_conductivity.ipynb
+      - href: notebooks/3_rosetta_hydraulic_conductivity.html
         text: "3 · Conductivity & infiltration"
     right:
       - icon: github

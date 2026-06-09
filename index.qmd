@@ -23,21 +23,21 @@ page. Grey, dashed regions flag physically implausible texture × bulk-density c
 ::: {.grid}
 
 ::: {.g-col-12 .g-col-md-4}
-### [1 · Porosity by texture & bulk density](notebooks/1_rosetta_porosity_by_texture.ipynb)
+### [1 · Porosity by texture & bulk density](notebooks/1_rosetta_porosity_by_texture.html)
 Total porosity, **field capacity**, and **wilting point** for every USDA texture class across
 bulk densities 0.8–1.9 g/cm³ — with plant-available and drainable water in inches per foot of
 soil, plus an FAO-style storage diagram. The foundation for the other two notebooks.
 :::
 
 ::: {.g-col-12 .g-col-md-4}
-### [2 · Organic-matter effects](notebooks/2_organic_matter_water_holding.ipynb)
+### [2 · Organic-matter effects](notebooks/2_organic_matter_water_holding.html)
 How adding **organic matter** (0–8%, up to 15%) shifts available and drainable water, via two
 independent methods — Rosetta + Minasny & McBratney (2018), and Saxton–Rawls (2006) — with a
 mineral-baseline calibration from the UNSODA database.
 :::
 
 ::: {.g-col-12 .g-col-md-4}
-### [3 · Conductivity & infiltration](notebooks/3_rosetta_hydraulic_conductivity.ipynb)
+### [3 · Conductivity & infiltration](notebooks/3_rosetta_hydraulic_conductivity.html)
 Saturated **Ksat**, unsaturated **K(h)** from the Mualem–van Genuchten curve, and **Green–Ampt
 infiltration** rates — all in stormwater units (in/hr), with bulk-density sliders.
 :::
