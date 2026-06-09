@@ -43,19 +43,23 @@ bulk-density / organic-matter sliders, hover, pan, and zoom right in the browser
 
 ### How it works
 
-- [`build_site.py`](build_site.py) renders each notebook to HTML with
-  `jupyter nbconvert --to html --no-input` (**code hidden**), which preserves the notebooks'
-  self-contained Bokeh/HoloViews embeds, then injects a shared navigation bar and a landing page
-  into `_site/`. Build locally with **`pixi run build-site`** and open `_site/index.html`.
-- The site uses the notebooks' **committed outputs** — the build does *not* re-execute them, so it
-  needs neither the (git-ignored) UNSODA data nor Homebrew `mdbtools`. Re-run the notebooks
-  yourself (Notebook 1 first) whenever the results change, then rebuild.
-- [`.github/workflows/publish.yml`](.github/workflows/publish.yml) rebuilds and deploys on every
-  push to `main`, using the same pixi environment.
+The site is built with **[Quarto](https://quarto.org)** ([`_quarto.yml`](_quarto.yml),
+[`index.qmd`](index.qmd)), with code folded by default.
 
-> [!NOTE]
-> nbconvert is used instead of a site generator such as Quarto because Quarto's pandoc pipeline
-> strips the pre-executed HoloViews/Bokeh embeds; nbconvert keeps them verbatim.
+- Build locally with **`pixi run render`** (or `pixi run preview` for a live server); output goes
+  to `_site/`.
+- Quarto **executes** the notebooks (run Notebook 1 first so its CSV exists) and **freezes** the
+  results into [`_freeze/`](_freeze) — which **is committed**. CI then renders *from that cache*
+  without re-executing, so the GitHub runner needs no kernel, UNSODA data, or `mdbtools`.
+- **Re-render and commit `_freeze/` after editing a notebook** — that is what refreshes the site.
+- [`.github/workflows/publish.yml`](.github/workflows/publish.yml) renders and deploys on every
+  push to `main` using the same pixi environment.
+
+> [!IMPORTANT]
+> Quarto must **execute or freeze** the notebooks — that is what preserves the interactive
+> HoloViews/Bokeh embeds (slider/hover/zoom). Rendering *pre-executed* `.ipynb` with execution
+> disabled silently strips those embeds (dead plots). `execute-dir: file` is set so each notebook
+> runs in `notebooks/` and its relative CSV read resolves.
 
 ---
 

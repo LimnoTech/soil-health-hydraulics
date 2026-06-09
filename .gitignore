@@ -223,5 +223,10 @@ __marimo__/
 # UNSODA scratch / working data (regenerate with notebooks/fetch_unsoda.py)
 notebooks/data_temp/
 
-# Static website build output (build_site.py)
+# Quarto: rendered site + scratch (NOTE: _freeze/ is committed — it is the CI render cache)
 /_site/
+/.quarto/
+**/*.quarto_ipynb
+
+# Stray Quarto single-file render artifacts (project render keeps resources in _site/)
+notebooks/*_files/

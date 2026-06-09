@@ -29,10 +29,25 @@ jobs:
           # Cache the solved env keyed on pixi.lock for fast rebuilds
           cache: true
 
-      - name: Build site
-        # Renders committed notebook outputs to HTML (code hidden) with nbconvert,
-        # preserving the embedded interactive Bokeh plots. Does not re-execute notebooks.
-        run: pixi run build-site
+      - name: Render site (Quarto)
+        # Renders from the committed _freeze/ cache: Quarto does NOT re-execute the
+        # notebooks (so no kernel/UNSODA/mdbtools needed here), and the interactive
+        # HoloViews/Bokeh embeds are preserved. Regenerate _freeze locally with
+        # `pixi run render` after editing a notebook.
+        run: pixi run render
+
+      - name: Fail if _freeze/ is stale
+        # A freeze cache that matches the notebooks is a render-only no-op for _freeze/.
+        # If rendering changed _freeze/, Quarto had to re-execute -> the committed cache
+        # was out of date. Re-run `pixi run render` locally and commit _freeze/.
+        run: |
+          if [ -n "$(git status --porcelain -- _freeze/)" ]; then
+            echo "::error::_freeze/ is out of date for the current notebooks. Run 'pixi run render' locally and commit _freeze/."
+            git status --porcelain -- _freeze/
+            git --no-pager diff --stat -- _freeze/
+            exit 1
+          fi
+          echo "_freeze/ is up to date."
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

@@ -1,0 +1,50 @@
+project:
+  type: website
+  output-dir: _site
+  # Execute each notebook in its OWN directory so relative reads
+  # (e.g. rosetta_porosity_by_texture.csv) resolve.
+  execute-dir: file
+
+website:
+  title: "Soil Health & Water Storage"
+  description: >-
+    Interactive Rosetta pedotransfer results — porosity, plant-available water,
+    organic-matter effects, and hydraulic conductivity by USDA texture class.
+  site-url: "https://limnotech.github.io/soil-health-hydraulics/"
+  repo-url: "https://github.com/LimnoTech/soil-health-hydraulics"
+  page-navigation: true
+  back-to-top-navigation: true
+  navbar:
+    background: primary
+    search: true
+    left:
+      - href: index.qmd
+        text: Home
+      - href: notebooks/1_rosetta_porosity_by_texture.ipynb
+        text: "1 · Porosity by texture"
+      - href: notebooks/2_organic_matter_water_holding.ipynb
+        text: "2 · Organic matter"
+      - href: notebooks/3_rosetta_hydraulic_conductivity.ipynb
+        text: "3 · Conductivity & infiltration"
+    right:
+      - icon: github
+        href: https://github.com/LimnoTech/soil-health-hydraulics
+        aria-label: GitHub repository
+  page-footer:
+    center: "LimnoTech · Built with Quarto · Soil hydraulics from Rosetta pedotransfer functions"
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    code-tools: false
+    code-summary: "Show code"
+
+# Quarto EXECUTES the notebooks (that is what preserves the interactive
+# HoloViews/Bokeh embeds), but freezes the results: execute locally, commit
+# _freeze/, and CI renders from the cache without re-executing.
+execute:
+  enabled: true
+  freeze: auto

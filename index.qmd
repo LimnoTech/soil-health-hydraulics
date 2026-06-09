@@ -1,0 +1,58 @@
+---
+title: "Soil Health Impacts on Water Storage & Hydraulic Conductivity"
+toc: false
+---
+
+How do **soil texture**, **bulk density** (compaction), and **organic matter** control how
+much water a soil can store and how fast water moves through it? These pages turn the
+[**Rosetta**](https://github.com/usda-ars-ussl/rosetta-soil) pedotransfer functions into
+**interactive charts** you can explore right in your browser — drag the sliders to change
+bulk density or organic matter and watch porosity, plant-available water, and infiltration
+respond.
+
+::: {.callout-tip}
+## How to explore
+Every chart is live: **drag the sliders** (bulk density, organic matter) and **hover** for
+exact values; use the toolbar to **zoom and pan**. No install required — it all runs in the
+page. Grey, dashed regions flag physically implausible texture × bulk-density combinations
+(extrapolation beyond Rosetta's training range).
+:::
+
+## The notebooks
+
+::: {.grid}
+
+::: {.g-col-12 .g-col-md-4}
+### [1 · Porosity by texture & bulk density](notebooks/1_rosetta_porosity_by_texture.ipynb)
+Total porosity, **field capacity**, and **wilting point** for every USDA texture class across
+bulk densities 0.8–1.9 g/cm³ — with plant-available and drainable water in inches per foot of
+soil, plus an FAO-style storage diagram. The foundation for the other two notebooks.
+:::
+
+::: {.g-col-12 .g-col-md-4}
+### [2 · Organic-matter effects](notebooks/2_organic_matter_water_holding.ipynb)
+How adding **organic matter** (0–8%, up to 15%) shifts available and drainable water, via two
+independent methods — Rosetta + Minasny & McBratney (2018), and Saxton–Rawls (2006) — with a
+mineral-baseline calibration from the UNSODA database.
+:::
+
+::: {.g-col-12 .g-col-md-4}
+### [3 · Conductivity & infiltration](notebooks/3_rosetta_hydraulic_conductivity.ipynb)
+Saturated **Ksat**, unsaturated **K(h)** from the Mualem–van Genuchten curve, and **Green–Ampt
+infiltration** rates — all in stormwater units (in/hr), with bulk-density sliders.
+:::
+
+:::
+
+## What's behind the numbers
+
+All results come from the **Rosetta v3** pedotransfer functions, which predict van
+Genuchten–Mualem water-retention and conductivity parameters from sand/silt/clay percentages
+and bulk density. Texture classes use representative *median* sand/silt/clay values. See the
+individual notebooks for full methodology, assumptions, and caveats, or the
+[project README](https://github.com/LimnoTech/soil-health-hydraulics#readme) for an overview.
+
+::: {.callout-note appearance="simple"}
+These are **model estimates** for matrix (non-macropore) flow, intended for relative comparison
+and planning. They are not a substitute for site-specific measurements.
+:::
