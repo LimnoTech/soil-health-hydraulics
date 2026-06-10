@@ -85,11 +85,13 @@ flag/treatment when adding plots.
   → `_site/`. Config: `execute: { enabled: true, freeze: auto }` and `execute-dir: file`.
 - **`execute-dir: file`** runs each notebook in `notebooks/` so its relative CSV read resolves.
 - **Freeze workflow:** `pixi run render` executes notebooks locally and writes `_freeze/`, which
-  **is committed**. `.github/workflows/publish.yml` runs `pixi run render` on the runner, where the
-  unchanged sources hit the freeze cache → **no execution** (≈15 s), so CI needs no kernel, UNSODA
-  data, or `mdbtools`. After editing a notebook you MUST re-render locally and commit `_freeze/`,
-  or CI will fall back to executing it.
-- `_site/` and `.quarto/` are git-ignored; **`_freeze/` is committed** (it's the CI render cache).
+  **is committed**. CI runs `pixi run render`: if the committed cache matches, it renders without
+  executing (~15 s). **Caveat: the freeze does not reliably "hit" across macOS→Linux** (and any
+  change to a notebook — including a `jupytext_version` header bump — invalidates it), so CI often
+  re-executes (~4 min). That is fine: re-execution succeeds (rosetta installs on Linux; the
+  committed `notebooks/data_temp/unsoda_bd_om.csv` lets NB2 run fully) and **always deploys**. The
+  freeze-staleness step is a **non-fatal warning** — never let it `exit 1` and block the deploy.
+- `_site/` and `.quarto/` are git-ignored; **`_freeze/` is committed** (render cache / local speed-up).
   (`linux-64` is in `pixi.toml` platforms so the Ubuntu runner can solve the env.)
 - Single-file `quarto render <file>` bypasses the project (no `_site`/freeze) — always run the
   **project** render (`pixi run render`).
@@ -97,10 +99,11 @@ flag/treatment when adding plots.
 
 ## Gotchas
 
-- **UNSODA data is optional at runtime.** `notebooks/data_temp/` is git-ignored; Notebook 2 reads
-  `data_temp/unsoda_bd_om.csv` only to illustrate the mineral-baseline OC, and falls back to the
-  documented constant `OC_BASELINE_PCT = 1.0` if the file is absent. `fetch_unsoda.py` needs
-  Homebrew `mdbtools` (not on conda-forge for osx-arm64), so it's not part of the normal flow.
+- **UNSODA data.** The derived `notebooks/data_temp/unsoda_bd_om.csv` **is committed** (an
+  exception to the otherwise git-ignored `data_temp/`) so CI can fully execute Notebook 2 — incl.
+  its UNSODA scatter — on a freeze miss. NB2 also falls back to `OC_BASELINE_PCT = 1.0` if the file
+  is ever absent. Only regenerating that CSV via `fetch_unsoda.py` needs Homebrew `mdbtools` (not on
+  conda-forge for osx-arm64); reading it does not.
 - **Renaming the repo directory breaks the pixi env** (conda console-script shebangs hardcode the
   old absolute path — `jupytext`/`jupyter` fail though `python` works). Fix: `rm -rf .pixi && pixi install`.
 - **NB3 page weight**: the K(h) suction grid (36 pts) and Green–Ampt `geomspace(…, 120)` were tuned

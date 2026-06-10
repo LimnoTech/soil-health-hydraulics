@@ -1,0 +1,6 @@
+{
+  // Make the "Jupytext Sync" extension (caenrigen.jupytext-sync) run jupytext from the
+  // project's pixi environment, so the editor, `pixi run jupytext`, and CI all use the
+  // same jupytext version (1.19.3) — stops the .py/.ipynb header version from flip-flopping.
+  "jupytextSync.pythonExecutable": "${workspaceFolder}/.pixi/envs/default/bin/python"
+}

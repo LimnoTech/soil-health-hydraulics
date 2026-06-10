@@ -49,9 +49,11 @@ The site is built with **[Quarto](https://quarto.org)** ([`_quarto.yml`](_quarto
 - Build locally with **`pixi run render`** (or `pixi run preview` for a live server); output goes
   to `_site/`.
 - Quarto **executes** the notebooks (run Notebook 1 first so its CSV exists) and **freezes** the
-  results into [`_freeze/`](_freeze) — which **is committed**. CI then renders *from that cache*
-  without re-executing, so the GitHub runner needs no kernel, UNSODA data, or `mdbtools`.
-- **Re-render and commit `_freeze/` after editing a notebook** — that is what refreshes the site.
+  results into [`_freeze/`](_freeze) — which **is committed**. When the cache matches, CI renders
+  *from it* without re-executing (fast); otherwise CI re-executes (the committed
+  `notebooks/data_temp/unsoda_bd_om.csv` lets Notebook 2 run fully). Either way it **deploys** — a
+  stale cache is a non-fatal warning, never a blocked deploy.
+- **Re-render and commit `_freeze/` after editing a notebook** to keep CI fast.
 - [`.github/workflows/publish.yml`](.github/workflows/publish.yml) renders and deploys on every
   push to `main` using the same pixi environment.
 

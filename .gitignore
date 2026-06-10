@@ -220,8 +220,11 @@ __marimo__/
 .pixi/*
 !.pixi/config.toml
 
-# UNSODA scratch / working data (regenerate with notebooks/fetch_unsoda.py)
-notebooks/data_temp/
+# UNSODA scratch / working data (regenerate with notebooks/fetch_unsoda.py).
+# The derived bulk-density/OM extract is committed so CI can fully execute Notebook 2
+# (with its UNSODA scatter) if the freeze cache ever misses; the rest stays ignored.
+notebooks/data_temp/*
+!notebooks/data_temp/unsoda_bd_om.csv
 
 # Quarto: rendered site + scratch (NOTE: _freeze/ is committed — it is the CI render cache)
 /_site/

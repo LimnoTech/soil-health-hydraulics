@@ -36,18 +36,18 @@ jobs:
         # `pixi run render` after editing a notebook.
         run: pixi run render
 
-      - name: Fail if _freeze/ is stale
-        # A freeze cache that matches the notebooks is a render-only no-op for _freeze/.
-        # If rendering changed _freeze/, Quarto had to re-execute -> the committed cache
-        # was out of date. Re-run `pixi run render` locally and commit _freeze/.
+      - name: Warn if _freeze/ was stale (non-blocking)
+        # If rendering changed _freeze/, the committed cache didn't match the notebooks and
+        # Quarto re-executed them. The site STILL deploys (with freshly executed output) —
+        # this only flags that you should re-run `pixi run render` locally and commit _freeze/
+        # to keep CI fast. (A stale cache must never block the deploy.)
         run: |
           if [ -n "$(git status --porcelain -- _freeze/)" ]; then
-            echo "::error::_freeze/ is out of date for the current notebooks. Run 'pixi run render' locally and commit _freeze/."
-            git status --porcelain -- _freeze/
+            echo "::warning::_freeze/ was out of date — CI re-executed the notebooks. Run 'pixi run render' locally and commit _freeze/ to keep CI fast."
             git --no-pager diff --stat -- _freeze/
-            exit 1
+          else
+            echo "_freeze/ is up to date."
           fi
-          echo "_freeze/ is up to date."
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
