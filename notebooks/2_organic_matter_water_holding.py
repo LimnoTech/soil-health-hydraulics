@@ -40,22 +40,10 @@ import numpy as np
 import pandas as pd
 import hvplot.pandas  # noqa: F401  (registers the .hvplot accessor)
 import holoviews as hv
-from IPython.display import HTML
+from scipy.stats import linregress
 
-pd.set_option("display.float_format", lambda v: f"{v:0.3f}")
-
-
-def show(df, height=360):
-    """Display the *full* DataFrame in a fixed-height, scrollable box — renders the same in
-    JupyterLab and in the exported HTML site (`to_html` emits every row and respects the
-    float_format set above)."""
-    return HTML(
-        "<style>.scroll-df thead th{position:sticky;top:0;background:#fff;"
-        "box-shadow:inset 0 -1px 0 #ccc;}</style>"
-        f'<div class="scroll-df" style="max-height:{height}px;overflow:auto;'
-        'border:1px solid #ddd;border-radius:4px;">'
-        f"{df.to_html()}</div>"
-    )
+# Shared display helper (and the shared pandas float_format, set on import). See notebooks/_helpers.py.
+from _helpers import show
 
 # ROSETTA texture × bulk-density baseline produced by rosetta_porosity_by_texture.ipynb
 result = pd.read_csv("rosetta_porosity_by_texture.csv")
@@ -87,8 +75,10 @@ show(result)
 # OC > 0**, not a true organic-free (OC = 0) soil. Before blending in any organic-matter effect
 # (Section 2), we estimate that baseline OC from the 367 UNSODA 2.0 samples that report both bulk
 # density and organic-matter content (OC = 0.58·OM, van Bemmelen). OC falls clearly with bulk
-# density (Pearson r ≈ −0.6). For the mineral subset (OM ≤ 20 %): all-horizon mean ≈ 0.9 % OC;
-# **mineral topsoil (≤15 cm) median ≈ 1.1 % OC**. We anchor ROSETTA at **`OC_BASELINE_PCT`
+# density (Pearson r ≈ −0.6); the scatter below overlays **OLS regressions of OC on bulk density**
+# fit separately for topsoil, subsoil, and all mineral data, with the slopes/intercepts/R²/p
+# reported in the accompanying table. For the mineral subset (OM ≤ 20 %): all-horizon mean ≈ 0.9 %
+# OC; **mineral topsoil (≤15 cm) median ≈ 1.1 % OC**. We anchor ROSETTA at **`OC_BASELINE_PCT`
 # (default 1.0 % OC)**; Section 2 then applies the M&M increments *relative to that* baseline.
 #
 # `data_temp/` is git-ignored; run `pixi run python notebooks/fetch_unsoda.py` to (re)create
@@ -111,14 +101,49 @@ if os.path.exists(_unsoda_path):
     print("UNSODA mineral subset (OM ≤ 20%) — organic carbon %, OC = 0.58·OM:")
     print(mineral.groupby("horizon_group")["OC_pct"].agg(["count", "mean", "median"]).round(2))
     print(f"OC~BD Pearson r = {mineral['OC_pct'].corr(mineral['bulk_density_g_cm3']):.2f}")
+
+    # OLS regressions of organic carbon on bulk density: topsoil, subsoil, and all mineral data.
+    _reg_groups = {
+        "topsoil (≤15 cm)": mineral[mineral["horizon_group"] == "topsoil (≤15 cm)"],
+        "subsoil (>15 cm)": mineral[mineral["horizon_group"] == "subsoil (>15 cm)"],
+        "all mineral": mineral,
+    }
+    _reg_colors = {"topsoil (≤15 cm)": "#1f77b4", "subsoil (>15 cm)": "#ff7f0e", "all mineral": "black"}
+    _bd_line = np.array([mineral["bulk_density_g_cm3"].min(), mineral["bulk_density_g_cm3"].max()])
+    _reg_rows, _reg_lines = [], []
+    for _name, _g in _reg_groups.items():
+        _lr = linregress(_g["bulk_density_g_cm3"], _g["OC_pct"])
+        _reg_rows.append({
+            "regression": _name,
+            "n": len(_g),
+            "slope (%OC per g/cm³)": _lr.slope,
+            "intercept (%OC)": _lr.intercept,
+            "r": _lr.rvalue,
+            "R²": _lr.rvalue ** 2,
+            "p_value": _lr.pvalue,
+        })
+        _reg_lines.append(
+            hv.Curve((_bd_line, _lr.intercept + _lr.slope * _bd_line), label=f"{_name} fit").opts(
+                color=_reg_colors[_name], line_width=2,
+                line_dash="solid" if _name == "all mineral" else "dashed",
+            )
+        )
+    reg_df = pd.DataFrame(_reg_rows)
+
     _scatter = mineral.hvplot.scatter(
         x="bulk_density_g_cm3", y="OC_pct", by="horizon_group",
         xlabel="bulk density (g/cm³)", ylabel="organic carbon  OC = 0.58·OM  (%)",
         title="UNSODA 2.0: organic carbon vs. bulk density (mineral soils)",
-        width=760, height=460, legend="top_right", alpha=0.6, size=25, ylim=(0, 12), grid=True,
+        width=760, height=460, legend="top_right", alpha=0.6, size=25, ylim=(0, 10), grid=True,
     )
     _baseline = hv.HLine(OC_BASELINE_PCT).opts(color="firebrick", line_dash="dashed", line_width=2)
-    display(_scatter * _baseline)
+    display(_scatter * _baseline * hv.Overlay(_reg_lines))
+
+    # Regression parameters table (p-values formatted in scientific notation to keep precision).
+    _reg_show = reg_df.copy()
+    _reg_show["p_value"] = _reg_show["p_value"].map(lambda p: f"{p:.2e}")
+    print("OC = slope · bulk_density + intercept  (OLS):")
+    display(show(_reg_show, height=160))
 else:
     print(f"{_unsoda_path} not found — run `pixi run python notebooks/fetch_unsoda.py` to regenerate it.")
     print(f"Proceeding with the documented default OC_BASELINE_PCT = {OC_BASELINE_PCT} % OC.")

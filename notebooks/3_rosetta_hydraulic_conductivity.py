@@ -32,22 +32,10 @@ import numpy as np
 import pandas as pd
 import hvplot.pandas  # noqa: F401  (registers the .hvplot accessor)
 import holoviews as hv
-from IPython.display import HTML
 
-pd.set_option("display.float_format", lambda v: f"{v:0.3f}")
-
-
-def show(df, height=360):
-    """Display the *full* DataFrame in a fixed-height, scrollable box — renders the same in
-    JupyterLab and in the exported HTML site (`to_html` emits every row and respects the
-    float_format set above)."""
-    return HTML(
-        "<style>.scroll-df thead th{position:sticky;top:0;background:#fff;"
-        "box-shadow:inset 0 -1px 0 #ccc;}</style>"
-        f'<div class="scroll-df" style="max-height:{height}px;overflow:auto;'
-        'border:1px solid #ddd;border-radius:4px;">'
-        f"{df.to_html()}</div>"
-    )
+# Shared helpers (display table, Mualem K(h), extrapolation-aware line plot); importing _helpers
+# also sets the shared pandas float_format. See notebooks/_helpers.py.
+from _helpers import show, mualem_k, line_with_extrapolation
 
 # Rosetta baseline + Mualem–van Genuchten parameters from Notebook 1
 result = pd.read_csv("rosetta_porosity_by_texture.csv")
@@ -62,47 +50,8 @@ texture_x = {cls: i for i, cls in enumerate(TEXTURE_CLASSES)}
 texture_ticks = [(i, f"{cls} ({HYDROLOGIC_SOIL_GROUP[cls]})") for cls, i in texture_x.items()]
 
 
-def mualem_k(h, alpha, n, k0, L):
-    """Unsaturated hydraulic conductivity K at suction head h [cm], Mualem–van Genuchten
-    (Schaap & Leij, 2000), in the same units as k0 (Rosetta: cm/day):
-
-        Se = [1 + (alpha h)^n]^(-m),  m = 1 - 1/n
-        K(Se) = k0 * Se^L * [1 - (1 - Se^(1/m))^m]^2
-
-    Use Rosetta's matching-point k0 (col 5) and exponent L (col 6, often negative) — not Ksat.
-    """
-    h = np.abs(np.asarray(h, dtype=float))
-    alpha = np.asarray(alpha, dtype=float)
-    n = np.asarray(n, dtype=float)
-    m = 1.0 - 1.0 / n
-    Se = (1.0 + (alpha * h) ** n) ** (-m)
-    return k0 * Se**L * (1.0 - (1.0 - Se ** (1.0 / m)) ** m) ** 2
-
-
-# --- plotting helpers (mirrors Notebook 1) ---
-plot_opts = dict(
-    x="bulk_density_g_cm3", by="texture_class", xlabel="Bulk density (g/cm³)",
-    width=750, height=500, legend="right", grid=True,
-)
-# boundary row kept in both series so solid and grey-dashed (extrapolation) segments join
-_next_implausible = result.groupby("texture_class", sort=False)["implausible_bd"].shift(-1).fillna(False)
-_extrap_mask = result["implausible_bd"] | _next_implausible
-
-
-def line_with_extrapolation(ycol, ylabel, title, **extra):
-    """x = bulk density; solid over plausible BD, grey-dashed where implausible_bd."""
-    solid = result.assign(**{ycol: result[ycol].where(~result["implausible_bd"])}).hvplot.line(
-        y=ycol, ylabel=ylabel, title=title, **plot_opts, **extra
-    )
-    dashed = (
-        result.assign(**{ycol: result[ycol].where(_extrap_mask)})
-        .hvplot.line(y=ycol, **plot_opts, **extra)
-        .opts(hv.opts.Curve(color="lightgray", line_dash="dashed", alpha=0.9))
-        .opts(show_legend=False)
-    )
-    return solid * dashed
-
-
+# mualem_k and line_with_extrapolation are shared with Notebook 1 and imported from _helpers.
+# bd_slider_line (the slider-driven K(h) / Green–Ampt line plots) is specific to this notebook.
 def bd_slider_line(dfL, x, y, xlabel, ylabel, title, **kw):
     """Line plot (one per texture) with a bulk-density slider; rows flagged implausible_bd are
     drawn grey-dashed. Returns a HoloMap keyed by bulk_density_g_cm3 (caller overlays/redims)."""
@@ -136,6 +85,7 @@ show(result)
 
 # %%
 line_with_extrapolation(
+    result,
     "ksat_in_hr",
     "Saturated hydraulic conductivity Ksat (in/hr, log scale)",
     "Rosetta saturated hydraulic conductivity vs. bulk density by USDA texture class",

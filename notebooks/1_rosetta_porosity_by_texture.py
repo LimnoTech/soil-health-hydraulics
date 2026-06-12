@@ -38,22 +38,10 @@
 import numpy as np
 import pandas as pd
 from rosetta import rosetta, SoilData
-from IPython.display import HTML
 
-pd.set_option("display.float_format", lambda v: f"{v:0.3f}")
-
-
-def show(df, height=360):
-    """Display the *full* DataFrame in a fixed-height, scrollable box — renders the same in
-    JupyterLab and in the exported HTML site (`to_html` emits every row and respects the
-    float_format set above)."""
-    return HTML(
-        "<style>.scroll-df thead th{position:sticky;top:0;background:#fff;"
-        "box-shadow:inset 0 -1px 0 #ccc;}</style>"
-        f'<div class="scroll-df" style="max-height:{height}px;overflow:auto;'
-        'border:1px solid #ddd;border-radius:4px;">'
-        f"{df.to_html()}</div>"
-    )
+# Shared helpers (display table, van Genuchten–Mualem functions, extrapolation-aware line plot);
+# importing _helpers also sets the shared pandas float_format. See notebooks/_helpers.py.
+from _helpers import show, vg_theta, mualem_k, line_with_extrapolation
 
 # %% [markdown]
 # ## 1. Representative (median) texture values for each USDA class
@@ -132,40 +120,7 @@ print(f"{len(bulk_densities)} bulk densities: {bulk_densities}")
 # conductivity K(h) from Rosetta's Mualem–van Genuchten parameters (matching-point `K0` and
 # pore-connectivity `L`, columns 5–6 of the Rosetta output). Used for K at field capacity /
 # wilting point (§4) and carried in the CSV for the hydraulic-conductivity notebook (Notebook 3).
-
-# %%
-def vg_theta(h, theta_r, theta_s, alpha, n):
-    """Volumetric water content at suction head h [cm] (van Genuchten, 1980).
-
-    Parameters may be scalars or numpy arrays (broadcast together).
-    alpha [1/cm], n [-], theta_r/theta_s [cm3/cm3]. m = 1 - 1/n.
-    """
-    theta_r = np.asarray(theta_r, dtype=float)
-    theta_s = np.asarray(theta_s, dtype=float)
-    alpha = np.asarray(alpha, dtype=float)
-    n = np.asarray(n, dtype=float)
-    m = 1.0 - 1.0 / n
-    return theta_r + (theta_s - theta_r) / (1.0 + (alpha * h) ** n) ** m
-
-
-def mualem_k(h, alpha, n, k0, L):
-    """Unsaturated hydraulic conductivity K at suction head h [cm], Mualem–van Genuchten
-    (Schaap & Leij, 2000), in the same units as k0 (Rosetta: cm/day):
-
-        Se = [1 + (alpha h)^n]^(-m),  m = 1 - 1/n
-        K(Se) = k0 * Se^L * [1 - (1 - Se^(1/m))^m]^2
-
-    k0 = matching-point conductivity (Rosetta col 5), L = pore-connectivity exponent
-    (col 6, often negative). At h = 0 (Se = 1) this returns k0 — note Rosetta's k0 is the
-    fitted matching point and is typically < Ksat (col 4). Scalars or numpy arrays.
-    """
-    h = np.abs(np.asarray(h, dtype=float))
-    alpha = np.asarray(alpha, dtype=float)
-    n = np.asarray(n, dtype=float)
-    m = 1.0 - 1.0 / n
-    Se = (1.0 + (alpha * h) ** n) ** (-m)
-    return k0 * Se**L * (1.0 - (1.0 - Se ** (1.0 / m)) ** m) ** 2
-
+# Both functions are shared with Notebook 3 and live in **`notebooks/_helpers.py`** (imported above).
 
 # %% [markdown]
 # ## 4. Run Rosetta and build the results DataFrame
@@ -274,40 +229,10 @@ print("Wrote rosetta_porosity_by_texture.csv")
 # continues as a faint **grey dashed** tail.
 
 # %%
-import hvplot.pandas  # noqa: F401  (registers the .hvplot accessor)
-import holoviews as hv
-
-plot_opts = dict(
-    x="bulk_density_g_cm3",
-    by="texture_class",
-    xlabel="Bulk density (g/cm³)",
-    width=750,
-    height=500,
-    legend="right",
-    grid=True,
-)
-
-# Each texture's curve is drawn solid over plausible bulk densities and grey-dashed where
-# implausible_bd is True (Rosetta θₛ > BD-implied pore space). The boundary row is kept in
-# both series so the solid and dashed segments join.
-_next_implausible = result.groupby("texture_class", sort=False)["implausible_bd"].shift(-1).fillna(False)
-_extrap_mask = result["implausible_bd"] | _next_implausible
-
-
-def line_with_extrapolation(ycol, ylabel, title, **extra):
-    solid = result.assign(**{ycol: result[ycol].where(~result["implausible_bd"])}).hvplot.line(
-        y=ycol, ylabel=ylabel, title=title, **plot_opts, **extra
-    )
-    dashed = (
-        result.assign(**{ycol: result[ycol].where(_extrap_mask)})
-        .hvplot.line(y=ycol, **plot_opts, **extra)
-        .opts(hv.opts.Curve(color="lightgray", line_dash="dashed", alpha=0.9))
-        .opts(show_legend=False)
-    )
-    return solid * dashed
-
-
+# line_with_extrapolation (shared with Notebook 3) is imported from _helpers: each texture's
+# curve is solid over plausible bulk densities and grey-dashed where implausible_bd is True.
 line_with_extrapolation(
+    result,
     "total_porosity",
     "Total porosity θₛ (cm³/cm³)",
     "Rosetta total porosity vs. bulk density by USDA texture class",
@@ -315,6 +240,7 @@ line_with_extrapolation(
 
 # %%
 line_with_extrapolation(
+    result,
     "field_capacity_porosity",
     "Field-capacity porosity at 33 kPa (cm³/cm³)",
     "Rosetta field-capacity porosity vs. bulk density by USDA texture class",
@@ -322,6 +248,7 @@ line_with_extrapolation(
 
 # %%
 line_with_extrapolation(
+    result,
     "wilting_point_porosity",
     "Wilting-point porosity at 1500 kPa (cm³/cm³)",
     "Rosetta wilting-point porosity vs. bulk density by USDA texture class",
