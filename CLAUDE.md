@@ -7,8 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A small scientific-computing project: three Jupyter notebooks that turn the **Rosetta v3**
 pedotransfer functions into interactive soil water-storage / hydraulic-conductivity charts for a
 stormwater & soil-health audience, published as a static interactive website on GitHub Pages.
-There is no application code or test suite — the "product" is the executed notebooks and the site
-built from them.
+The only non-notebook code is **`notebooks/_helpers.py`**, a small module of functions shared by the
+notebooks (see Architecture); there is no test suite — the "product" is the executed notebooks and
+the site built from them.
 
 ## Environment & commands
 
@@ -53,6 +54,21 @@ Run order is **1 → (2 and 3)**. Notebook 1 is the source of truth; 2 and 3 are
 If you change Notebook 1's outputs, re-run Notebook 1 (to rewrite the CSV) **then** re-run 2 and 3,
 then `pixi run render` to refresh `_freeze/`. The CSV is committed (so notebooks 2/3 open standalone),
 and the site builds from the committed `_freeze/` cache — see the website-build section.
+
+### Shared code: `notebooks/_helpers.py`
+
+Functions used by more than one notebook live in **`notebooks/_helpers.py`**, imported as
+`from _helpers import ...` (notebooks execute with cwd = `notebooks/` via `execute-dir: file`, so the
+sibling module resolves). It exports `show` (the scrollable-table display helper, used by all three),
+`vg_theta` + `mualem_k` (van Genuchten–Mualem retention/conductivity, NB1 & NB3), and
+`line_with_extrapolation(result, ycol, ylabel, title, ...)` (the solid/grey-dashed BD line plot, NB1
+& NB3 — it takes `result` as its first argument and computes the extrapolation mask internally).
+Importing the module also sets the shared pandas `display.float_format` (3 decimals) that `show` relies on.
+
+`_helpers.py` is a **plain module, not a jupytext-paired notebook** (no `.ipynb`, no `# %%` cells), and
+the leading underscore keeps Quarto from rendering it as a page. **Editing it affects all three
+notebooks**, so re-run `pixi run render` (which re-executes them) after changing it. Single-notebook
+functions (`saxton_rawls`, `blend_line` in NB2; `bd_slider_line` in NB3) stay in their notebook.
 
 ## Critical, non-obvious constraints
 

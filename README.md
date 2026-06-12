@@ -32,6 +32,12 @@ sync (the `.py` holds code/markdown; the `.ipynb` holds outputs). Plots are embe
 self-contained HoloViews/Bokeh output, so the saved notebooks are interactive without a live
 kernel.
 
+Functions shared by more than one notebook live in
+[`notebooks/_helpers.py`](notebooks/_helpers.py) — the scrollable-table display helper, the
+van Genuchten–Mualem retention/conductivity functions, and the extrapolation-aware bulk-density
+line plot. It is a plain importable module (not a paired notebook); the notebooks `import` it at
+the top and run in `notebooks/`, so it resolves both in Jupyter and during the Quarto build.
+
 ---
 
 ## Interactive website (GitHub Pages)
@@ -148,6 +154,8 @@ plant-available) and **drainable water** (SAT − FC, the fast-draining pore spa
 - **Section 1 — Mineral-baseline organic carbon (UNSODA 2.0).** Estimates the organic carbon
   implicit in ROSETTA's mineral baseline from the 367 UNSODA 2.0 samples reporting both BD and OM
   (≈ 1 % OC; OC declines with BD, r ≈ −0.6) and sets `OC_BASELINE_PCT` — the anchor for the blend.
+  The OC-vs-BD scatter overlays **OLS regressions fit separately for topsoil, subsoil, and all
+  mineral data**, with the slopes / intercepts / R² / p reported in a parameter table.
 - **Section 2 — ROSETTA + Minasny & McBratney (2018) blend (recommended).** Keeps ROSETTA's
   texture + bulk-density skill for the mineral baseline, then adds M&M's empirical organic-carbon
   increments (Table 2 ΔWP / ΔAWC / ΔSAT slopes, by coarse/medium/fine texture group). We apply the
