@@ -43,7 +43,7 @@ import holoviews as hv
 from scipy.stats import linregress
 
 # Shared display helper (and the shared pandas float_format, set on import). See notebooks/_helpers.py.
-from _helpers import show
+from _helpers import show, soil_water_texture_band_diagram, soil_water_bd_om_blend_table, VB, OC_BASELINE_PCT, MM_SLOPES, MM_GROUP
 
 # ROSETTA texture × bulk-density baseline produced by rosetta_porosity_by_texture.ipynb
 result = pd.read_csv("rosetta_porosity_by_texture.csv")
@@ -193,19 +193,7 @@ else:
 # %%
 # ROSETTA mineral baseline (per bulk density) + additive Minasny & McBratney (2018) OC
 # increments, applied RELATIVE to OC_BASELINE_PCT, across the full bulk-density range.
-VB = 0.58  # van Bemmelen factor: OM ≈ OC / VB
-
-# Minasny & McBratney (2018) Table 2 slopes, mm H2O 100 mm-1 per +1% OC (= +10 g C/kg)
-MM_SLOPES = {
-    "coarse": {"WP": 0.86, "AWC": 1.94, "SAT": 4.59},
-    "medium": {"WP": 0.68, "AWC": 1.79, "SAT": 3.59},
-    "fine":   {"WP": 0.54, "AWC": 1.41, "SAT": 3.23},
-}
-MM_GROUP = {
-    "sand": "coarse", "loamy sand": "coarse", "sandy loam": "coarse", "sandy clay loam": "coarse",
-    "loam": "medium", "silt loam": "medium", "silt": "medium", "clay loam": "medium", "silty clay loam": "medium",
-    "sandy clay": "fine", "silty clay": "fine", "clay": "fine",
-}
+# VB, MM_SLOPES, MM_GROUP are imported from _helpers; OC_BASELINE_PCT set in §1 above.
 
 oc_values = np.round(np.arange(0.0, 8.0 + 1e-9, 0.5), 2)  # organic carbon %, 0–8 (≈ 0–14% OM)
 
@@ -322,47 +310,16 @@ x_pos = np.array([texture_x[cls] for cls in TEXTURE_CLASSES])
 
 
 def _blend_profile(bd, om):
-    d_oc = om * VB - OC_BASELINE_PCT  # OM% -> OC%, then relative to the mineral-baseline OC
-    wp, fc, por = [], [], []
-    for cls in TEXTURE_CLASSES:
-        s = MM_SLOPES[MM_GROUP[cls]]
-        sat0 = base.loc[(cls, bd), "total_porosity"]
-        fc0 = base.loc[(cls, bd), "field_capacity_porosity"]
-        wp0 = base.loc[(cls, bd), "wilting_point_porosity"]
-        wp_i = max(wp0 + s["WP"] / 100 * d_oc, 0.0)
-        awc_i = max((fc0 - wp0) + s["AWC"] / 100 * d_oc, 0.0)
-        wp.append(wp_i)
-        fc.append(wp_i + awc_i)            # derive FC so AWC matches M&M exactly
-        por.append(max(sat0 + s["SAT"] / 100 * d_oc, wp_i + awc_i))
-    pwp = np.array(wp) * INCHES_PER_FOOT
-    fc = np.array(fc) * INCHES_PER_FOOT
-    por = np.array(por) * INCHES_PER_FOOT
-    x = x_pos
-
-    bands = (
-        hv.Area((x, pwp, pwp * 0), vdims=["y", "y2"]).opts(color="orange", alpha=0.45, line_alpha=0)
-        * hv.Area((x, fc, pwp), vdims=["y", "y2"]).opts(color="green", alpha=0.45, line_alpha=0)
-        * hv.Area((x, por, fc), vdims=["y", "y2"]).opts(color="blue", alpha=0.40, line_alpha=0)
+    t = soil_water_bd_om_blend_table(result, bd, om)
+    x = np.array([texture_x[cls] for cls in TEXTURE_CLASSES])
+    pwp = t["wilting_point_porosity"].to_numpy() * INCHES_PER_FOOT
+    fc = t["field_capacity_porosity"].to_numpy() * INCHES_PER_FOOT
+    por = t["total_porosity"].to_numpy() * INCHES_PER_FOOT
+    return soil_water_texture_band_diagram(
+        x, pwp, fc, por,
+        texture_labels=t["texture_class"].astype(str).tolist(),
+        implausible=t["implausible"].to_numpy(),
     )
-    lines = (
-        hv.Curve((x, pwp), label="Permanent wilting point").opts(color="black", line_width=2)
-        * hv.Curve((x, fc), label="Field capacity").opts(color="black", line_width=2)
-        * hv.Curve((x, por), label="Total porosity").opts(color="gray", line_width=1.5, line_dash="dashed")
-    )
-    labels = (
-        hv.Text(8, pwp[8] * 0.5, "Unavailable\nwater").opts(text_color="saddlebrown", text_font_size="9pt")
-        * hv.Text(5, (pwp[5] + fc[5]) / 2, "Available water").opts(text_color="darkgreen", text_font_size="10pt")
-        * hv.Text(2.2, (fc[2] + por[2]) / 2, "Drainable\nwater").opts(text_color="navy", text_font_size="10pt")
-    )
-    overlay = bands
-    # grey out columns where the blended saturation exceeds the BD-implied pore space
-    # (1 - BD/2.65): physically impossible -> extrapolation at this BD × OM combination.
-    implausible = (por / INCHES_PER_FOOT) > (1.0 - bd / 2.65)
-    if implausible.any():
-        overlay = overlay * hv.Overlay(
-            [hv.VSpan(xi - 0.5, xi + 0.5).opts(color="gray", alpha=0.2) for xi in x[implausible]]
-        )
-    return overlay * lines * labels
 
 
 blend_profiles = hv.HoloMap(
@@ -379,7 +336,7 @@ blend_profiles.opts(
         height=520,
         legend_position="top_left",
         xlabel="texture class (hydrologic soil group); coarse → fine",
-        ylabel="Water volume (inches per foot of soil depth)",
+        ylabel="Water Storage Capacity (inches per foot of soil depth)",
         title="Soil water vs. texture — ROSETTA + Minasny & McBratney blend\n{dimensions}",
     ),
     hv.opts.Curve(xticks=texture_ticks, xrotation=45, ylim=(0, 10)),
@@ -477,23 +434,9 @@ def _sr_profile(om):
     pwp = d["wilting_point_porosity"].to_numpy() * INCHES_PER_FOOT
     fc = d["field_capacity_porosity"].to_numpy() * INCHES_PER_FOOT
     por = d["total_porosity"].to_numpy() * INCHES_PER_FOOT
-
-    bands = (
-        hv.Area((x, pwp, pwp * 0), vdims=["y", "y2"]).opts(color="orange", alpha=0.45, line_alpha=0)
-        * hv.Area((x, fc, pwp), vdims=["y", "y2"]).opts(color="green", alpha=0.45, line_alpha=0)
-        * hv.Area((x, por, fc), vdims=["y", "y2"]).opts(color="blue", alpha=0.40, line_alpha=0)
+    return soil_water_texture_band_diagram(
+        x, pwp, fc, por, texture_labels=d["texture_class"].astype(str).tolist()
     )
-    lines = (
-        hv.Curve((x, pwp), label="Permanent wilting point").opts(color="black", line_width=2)
-        * hv.Curve((x, fc), label="Field capacity").opts(color="black", line_width=2)
-        * hv.Curve((x, por), label="Total porosity").opts(color="gray", line_width=1.5, line_dash="dashed")
-    )
-    labels = (
-        hv.Text(8, pwp[8] * 0.5, "Unavailable\nwater").opts(text_color="saddlebrown", text_font_size="9pt")
-        * hv.Text(5, (pwp[5] + fc[5]) / 2, "Available water").opts(text_color="darkgreen", text_font_size="10pt")
-        * hv.Text(2.2, (fc[2] + por[2]) / 2, "Drainable\nwater").opts(text_color="navy", text_font_size="10pt")
-    )
-    return bands * lines * labels
 
 
 sr_profiles = hv.HoloMap(
@@ -507,7 +450,7 @@ sr_profiles.opts(
         height=520,
         legend_position="top_left",
         xlabel="texture class (hydrologic soil group); coarse → fine",
-        ylabel="Water volume (inches per foot of soil depth)",
+        ylabel="Water Storage Capacity (inches per foot of soil depth)",
         title="Soil water vs. texture (Saxton–Rawls) — {dimensions}",
     ),
     hv.opts.Curve(xticks=texture_ticks, xrotation=45, ylim=(0, 10)),

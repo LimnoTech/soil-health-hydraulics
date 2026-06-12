@@ -41,7 +41,7 @@ from rosetta import rosetta, SoilData
 
 # Shared helpers (display table, van Genuchten–Mualem functions, extrapolation-aware line plot);
 # importing _helpers also sets the shared pandas float_format. See notebooks/_helpers.py.
-from _helpers import show, vg_theta, mualem_k, line_with_extrapolation
+from _helpers import show, vg_theta, mualem_k, line_with_extrapolation, soil_water_texture_band_diagram
 
 # %% [markdown]
 # ## 1. Representative (median) texture values for each USDA class
@@ -385,30 +385,11 @@ def _water_profile(bd):
     pwp = d["wilting_point_porosity"].to_numpy() * INCHES_PER_FOOT
     fc = d["field_capacity_porosity"].to_numpy() * INCHES_PER_FOOT
     por = d["total_porosity"].to_numpy() * INCHES_PER_FOOT
-
-    bands = (
-        hv.Area((x, pwp, pwp * 0), vdims=["y", "y2"]).opts(color="orange", alpha=0.45, line_alpha=0)
-        * hv.Area((x, fc, pwp), vdims=["y", "y2"]).opts(color="green", alpha=0.45, line_alpha=0)
-        * hv.Area((x, por, fc), vdims=["y", "y2"]).opts(color="blue", alpha=0.40, line_alpha=0)
+    return soil_water_texture_band_diagram(
+        x, pwp, fc, por,
+        texture_labels=d["texture_class"].astype(str).tolist(),
+        implausible=d["implausible_bd"].to_numpy(),
     )
-    lines = (
-        hv.Curve((x, pwp), label="Permanent wilting point").opts(color="black", line_width=2)
-        * hv.Curve((x, fc), label="Field capacity").opts(color="black", line_width=2)
-        * hv.Curve((x, por), label="Total porosity").opts(color="gray", line_width=1.5, line_dash="dashed")
-    )
-    labels = (
-        hv.Text(8, pwp[8] * 0.5, "Unavailable\nwater").opts(text_color="saddlebrown", text_font_size="9pt")
-        * hv.Text(5, (pwp[5] + fc[5]) / 2, "Available water").opts(text_color="darkgreen", text_font_size="10pt")
-        * hv.Text(2.2, (fc[2] + por[2]) / 2, "Drainable\nwater").opts(text_color="navy", text_font_size="10pt")
-    )
-    overlay = bands
-    # grey out columns where this BD is physically implausible for the texture (extrapolation)
-    flagged = x[d["implausible_bd"].to_numpy()]
-    if len(flagged):
-        overlay = overlay * hv.Overlay(
-            [hv.VSpan(xi - 0.5, xi + 0.5).opts(color="gray", alpha=0.2) for xi in flagged]
-        )
-    return overlay * lines * labels
 
 
 profiles = hv.HoloMap(
@@ -422,7 +403,7 @@ profiles.opts(
         height=520,
         legend_position="top_left",
         xlabel="texture class (hydrologic soil group); coarse → fine",
-        ylabel="Water volume (inches per foot of soil depth)",
+        ylabel="Water Storage Capacity (inches per foot of soil depth)",
         title="Soil water vs. texture (Rosetta) — {dimensions}",
     ),
     hv.opts.Curve(xticks=texture_ticks, xrotation=45, ylim=(0, 0.7 * INCHES_PER_FOOT)),

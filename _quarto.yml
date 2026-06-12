@@ -4,6 +4,14 @@ project:
   # Execute each notebook in its OWN directory so relative reads
   # (e.g. rosetta_porosity_by_texture.csv) resolve.
   execute-dir: file
+  # Render ONLY the site inputs. Without this, Quarto's website auto-discovery would also
+  # render internal planning docs under docs/ (superpowers specs/plans) — and try to EXECUTE
+  # any ```{python} fences in them. Keep docs/ out of the published site.
+  render:
+    - index.qmd
+    - notebooks/1_rosetta_porosity_by_texture.py
+    - notebooks/2_organic_matter_water_holding.py
+    - notebooks/3_rosetta_hydraulic_conductivity.py
 
 website:
   title: "Soil Health & Water Storage"

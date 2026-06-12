@@ -24,14 +24,14 @@ These replace the generic "write test / commit" steps in the writing-plans templ
 3. **Render** to execute + refresh the freeze: `pixi run render` (from repo root).
 4. **Verify** with the concrete command(s) in the task, AND for any interactive change, **open the HTML** (`_site/...html`) in a browser and confirm sliders move, plots are live, hover shows the right fields, and wheel-zoom is OFF until toggled. A clean render log is necessary but NOT sufficient — embeds can render "successfully" yet be dead.
 5. **Do NOT run `git commit`.** Staging/committing is done manually by the user in GitHub Desktop (CLAUDE.md hard rule). Each task ends at a **Checkpoint**: report what changed and what to stage (including updated `notebooks/*.ipynb` and `_freeze/...`), then pause.
-6. **Pure-Python functions can be tested directly** without rendering: `pixi run python -c "..."`. Use this for `mm_blend_table`.
+6. **Pure-Python functions can be tested directly** without rendering: `pixi run python -c "..."`. Use this for `soil_water_bd_om_blend_table`.
 7. Preserve CLAUDE.md constraints: `dynamic=False` embeds, **no raw `<`/`>` in slider dimension labels**, `implausible_bd` grey treatment, keep `.py`/`.ipynb` synced, commit `_freeze/`.
 
 ---
 
 # PHASE 1 — Shared code + cross-cutting interactions
 
-### Task 1: Add M&M blend constants + `mm_blend_table()` to `_helpers.py`
+### Task 1: Add M&M blend constants + `soil_water_bd_om_blend_table()` to `_helpers.py`
 
 **Files:**
 - Modify: `notebooks/_helpers.py` (append after `line_with_extrapolation`)
@@ -56,7 +56,7 @@ MM_GROUP = {
 }
 
 
-def mm_blend_table(result, bd, om, oc_baseline=OC_BASELINE_PCT):
+def soil_water_bd_om_blend_table(result, bd, om, oc_baseline=OC_BASELINE_PCT):
     """ROSETTA mineral baseline + Minasny & McBratney (2018) organic-matter increments for a
     single (bulk density `bd`, organic matter `om` %) state — one row per texture class in the
     canonical sand→clay order of `result`. Volumetric water contents (cm³/cm³).
@@ -103,9 +103,9 @@ def mm_blend_table(result, bd, om, oc_baseline=OC_BASELINE_PCT):
 ```bash
 cd /Users/aaufdenkampe/Documents/git_Limno/soil-health-hydraulics/notebooks && pixi run python -c "
 import pandas as pd
-from _helpers import mm_blend_table
+from _helpers import soil_water_bd_om_blend_table
 r = pd.read_csv('rosetta_porosity_by_texture.csv')
-t = mm_blend_table(r, bd=1.4, om=2.0)
+t = soil_water_bd_om_blend_table(r, bd=1.4, om=2.0)
 row = t[t.texture_class=='loam'].iloc[0]
 print('loam @ BD1.4 OM2%:', round(row.wilting_point_porosity,4), round(row.field_capacity_porosity,4), round(row.total_porosity,4), 'impl=', row.implausible)
 assert abs((row.field_capacity_porosity - row.wilting_point_porosity) - row.available_water_capacity) < 1e-9
@@ -120,10 +120,10 @@ Expected: prints four numbers + `impl= False` + `OK` (no assertion error). Sanit
 
 ---
 
-### Task 2: Add the shared `fao_diagram()` builder (bands + lines + labels + grey + hover)
+### Task 2: Add the shared `soil_water_texture_band_diagram()` builder (bands + lines + labels + grey + hover)
 
 **Files:**
-- Modify: `notebooks/_helpers.py` (add a `from bokeh.models import HoverTool` near the imports; append `fao_diagram`)
+- Modify: `notebooks/_helpers.py` (add a `from bokeh.models import HoverTool` near the imports; append `soil_water_texture_band_diagram`)
 
 - [ ] **Step 1: Add the Bokeh import.** In `notebooks/_helpers.py`, after `import holoviews as hv` add:
 
@@ -134,15 +134,17 @@ from bokeh.models import HoverTool
 - [ ] **Step 2: Append the builder:**
 
 ```python
-def fao_diagram(x, pwp, fc, por, *, implausible=None, hover=True):
+def soil_water_texture_band_diagram(x, pwp, fc, por, *, texture_labels=None, implausible=None, hover=True):
     """FAO-style soil-water band diagram for ONE profile (one slider frame).
 
     `x` = texture x-positions (0..11); `pwp`/`fc`/`por` = wilting point / field capacity / total
-    porosity arrays **already in the plot's y-units** (inches per foot here). Returns an hv.Overlay
-    of: filled bands (orange unavailable / green available / blue drainable), the three boundary
-    curves, the three text labels, optional grey extrapolation spans (`implausible` boolean array),
-    and (if `hover`) an invisible per-texture hover layer reporting available / drainable / total
-    stormwater capacity. Visible geometry is identical to the previous per-notebook _*_profile code.
+    porosity arrays **already in the plot's y-units** (inches per foot here). `texture_labels` =
+    per-column texture names shown first in the hover tooltip (defaults to "texture <i>" if omitted).
+    Returns an hv.Overlay of: filled bands (orange unavailable / green available / blue drainable),
+    the three boundary curves, the three text labels, optional grey extrapolation spans
+    (`implausible` boolean array), and (if `hover`) an invisible per-texture hover layer reporting
+    the texture plus available / drainable / total stormwater capacity. Visible geometry is identical
+    to the previous per-notebook _*_profile code.
     """
     x = np.asarray(x); pwp = np.asarray(pwp); fc = np.asarray(fc); por = np.asarray(por)
     bands = (
@@ -171,16 +173,19 @@ def fao_diagram(x, pwp, fc, por, *, implausible=None, hover=True):
         available = fc - pwp
         drainable = por - fc
         total = por - pwp
+        if texture_labels is None:
+            texture_labels = [f"texture {int(xi)}" for xi in x]
         rects = [
-            (xi - 0.5, 0.0, xi + 0.5, max(por_i, 1e-6), av, dr, tot)
-            for xi, por_i, av, dr, tot in zip(x, por, available, drainable, total)
+            (xi - 0.5, 0.0, xi + 0.5, max(por_i, 1e-6), tx, av, dr, tot)
+            for xi, por_i, tx, av, dr, tot in zip(x, por, texture_labels, available, drainable, total)
         ]
         hover_tool = HoverTool(tooltips=[
+            ("Texture", "@texture"),
             ("Available water", "@available{0.00} in/ft"),
             ("Drainable water", "@drainable{0.00} in/ft"),
             ("Total stormwater capacity", "@total{0.00} in/ft"),
         ])
-        hover_layer = hv.Rectangles(rects, vdims=["available", "drainable", "total"]).opts(
+        hover_layer = hv.Rectangles(rects, vdims=["texture", "available", "drainable", "total"]).opts(
             fill_alpha=0, line_alpha=0, tools=[hover_tool]
         )
         overlay = overlay * hover_layer
@@ -192,16 +197,16 @@ def fao_diagram(x, pwp, fc, por, *, implausible=None, hover=True):
 ```bash
 cd /Users/aaufdenkampe/Documents/git_Limno/soil-health-hydraulics/notebooks && pixi run python -c "
 import numpy as np, holoviews as hv
-from _helpers import fao_diagram
+from _helpers import soil_water_texture_band_diagram
 x=np.arange(12); pwp=np.linspace(1,3,12); fc=pwp+2; por=fc+2
-ov = fao_diagram(x,pwp,fc,por, implausible=(x>9))
+ov = soil_water_texture_band_diagram(x,pwp,fc,por, implausible=(x>9))
 print(type(ov), 'OK')
 "
 ```
 
 Expected: prints an `Overlay` type + `OK`, no exception.
 
-- [ ] **Step 4: Checkpoint.** Note: hover hit-testing on `fill_alpha=0` rectangles is verified later when wired into a rendered plot (Task 4). If hover does not trigger there, change `fill_alpha=0` to `fill_alpha=0.01` in `fao_diagram`. Stage `notebooks/_helpers.py`; do NOT git commit.
+- [ ] **Step 4: Checkpoint.** Note: hover hit-testing on `fill_alpha=0` rectangles is verified later when wired into a rendered plot (Task 4). If hover does not trigger there, change `fill_alpha=0` to `fill_alpha=0.01` in `soil_water_texture_band_diagram`. Stage `notebooks/_helpers.py`; do NOT git commit.
 
 ---
 
@@ -237,15 +242,15 @@ Expected: `import OK` with no traceback. (A HoloViews "extension already loaded"
 
 ---
 
-### Task 4: Re-point NB1 §8 to `fao_diagram` + new y-axis label; verify hover & wheel-zoom
+### Task 4: Re-point NB1 §8 to `soil_water_texture_band_diagram` + new y-axis label; verify hover & wheel-zoom
 
 **Files:**
 - Modify: `notebooks/1_rosetta_porosity_by_texture.py` (`_water_profile`, the `profiles.opts` ylabel)
 
-- [ ] **Step 1: Add the import.** In NB1's top cell, change the helper import to include `fao_diagram`:
+- [ ] **Step 1: Add the import.** In NB1's top cell, change the helper import to include `soil_water_texture_band_diagram`:
 
 ```python
-from _helpers import show, vg_theta, mualem_k, line_with_extrapolation, fao_diagram
+from _helpers import show, vg_theta, mualem_k, line_with_extrapolation, soil_water_texture_band_diagram
 ```
 
 - [ ] **Step 2: Replace the body of `_water_profile`** so it delegates to the shared builder. Replace the existing function (from `def _water_profile(bd):` through its `return overlay * lines * labels`) with:
@@ -262,7 +267,11 @@ def _water_profile(bd):
     pwp = d["wilting_point_porosity"].to_numpy() * INCHES_PER_FOOT
     fc = d["field_capacity_porosity"].to_numpy() * INCHES_PER_FOOT
     por = d["total_porosity"].to_numpy() * INCHES_PER_FOOT
-    return fao_diagram(x, pwp, fc, por, implausible=d["implausible_bd"].to_numpy())
+    return soil_water_texture_band_diagram(
+        x, pwp, fc, por,
+        texture_labels=d["texture_class"].astype(str).tolist(),
+        implausible=d["implausible_bd"].to_numpy(),
+    )
 ```
 
 - [ ] **Step 3: Update the y-axis label.** In the `profiles.opts(...)` block, change:
@@ -298,7 +307,7 @@ Expected: first grep ≥ 1 (new label present); second grep ≥ 1 (hover tooltip
 
 ---
 
-### Task 5: Re-point NB2 §2 and §3 FAO diagrams to `fao_diagram` + blend table; new y-labels
+### Task 5: Re-point NB2 §2 and §3 FAO diagrams to `soil_water_texture_band_diagram` + blend table; new y-labels
 
 **Files:**
 - Modify: `notebooks/2_organic_matter_water_holding.py` (`_blend_profile`, `_sr_profile`, the two `*.opts` ylabels, and the blend constants now sourced from `_helpers`)
@@ -306,7 +315,7 @@ Expected: first grep ≥ 1 (new label present); second grep ≥ 1 (hover tooltip
 - [ ] **Step 1: Import shared blend + builder.** In NB2's top cell, change the helper import to:
 
 ```python
-from _helpers import show, fao_diagram, mm_blend_table, VB, OC_BASELINE_PCT, MM_SLOPES, MM_GROUP
+from _helpers import show, soil_water_texture_band_diagram, soil_water_bd_om_blend_table, VB, OC_BASELINE_PCT, MM_SLOPES, MM_GROUP
 ```
 
 - [ ] **Step 2: Remove the now-duplicated constants.** Delete NB2's local definitions of `VB`, `MM_SLOPES`, and `MM_GROUP` (they now come from `_helpers`). **Keep** `OC_BASELINE_PCT`'s narrative in §1, but delete the bare re-assignment line `OC_BASELINE_PCT = 1.0` only if §1 no longer needs to override it — otherwise leave §1 as-is (it may set its own). Keep `base = result.set_index([...])` (still used by `blend_line` and `_sr_profile` paths) and `om_grid`.
@@ -315,12 +324,16 @@ from _helpers import show, fao_diagram, mm_blend_table, VB, OC_BASELINE_PCT, MM_
 
 ```python
 def _blend_profile(bd, om):
-    t = mm_blend_table(result, bd, om)
+    t = soil_water_bd_om_blend_table(result, bd, om)
     x = np.array([texture_x[cls] for cls in TEXTURE_CLASSES])
     pwp = t["wilting_point_porosity"].to_numpy() * INCHES_PER_FOOT
     fc = t["field_capacity_porosity"].to_numpy() * INCHES_PER_FOOT
     por = t["total_porosity"].to_numpy() * INCHES_PER_FOOT
-    return fao_diagram(x, pwp, fc, por, implausible=t["implausible"].to_numpy())
+    return soil_water_texture_band_diagram(
+        x, pwp, fc, por,
+        texture_labels=t["texture_class"].astype(str).tolist(),
+        implausible=t["implausible"].to_numpy(),
+    )
 ```
 
 (Note: this requires `texture_x` and `INCHES_PER_FOOT` to exist in NB2. NB2 already defines `texture_x` and `INCHES_PER_FOOT` in its setup cell — confirm with `grep -n "texture_x\|INCHES_PER_FOOT" notebooks/2_organic_matter_water_holding.py`; if absent, add `INCHES_PER_FOOT = 12.0` and `texture_x = {cls: i for i, cls in enumerate(TEXTURE_CLASSES)}` to the setup cell.)
@@ -339,7 +352,7 @@ def _sr_profile(om):
     pwp = d["wilting_point_porosity"].to_numpy() * INCHES_PER_FOOT
     fc = d["field_capacity_porosity"].to_numpy() * INCHES_PER_FOOT
     por = d["total_porosity"].to_numpy() * INCHES_PER_FOOT
-    return fao_diagram(x, pwp, fc, por)
+    return soil_water_texture_band_diagram(x, pwp, fc, por)
 ```
 
 - [ ] **Step 5: Update both y-axis labels.** In `blend_profiles.opts(...)` and `sr_profiles.opts(...)`, change `ylabel="Water volume (inches per foot of soil depth)"` to `ylabel="Water Storage Capacity (inches per foot of soil depth)"`.
@@ -401,7 +414,7 @@ import numpy as np
 import pandas as pd
 import hvplot.pandas  # noqa: F401
 import holoviews as hv
-from _helpers import fao_diagram, mm_blend_table, show  # also sets float_format + wheel-zoom default
+from _helpers import soil_water_texture_band_diagram, soil_water_bd_om_blend_table, show  # also sets float_format + wheel-zoom default
 
 hv.output(widget_location="bottom")
 
@@ -419,15 +432,19 @@ BD_DIM = hv.Dimension("Bulk density, g/cm³ (higher is more compacted)", default
 OM_DIM = hv.Dimension("Organic matter (% by weight)", default=2.0, value_format=lambda v: f"{v:.1f}")
 
 def _fig(bd, om):
-    t = mm_blend_table(result, bd, om)
+    t = soil_water_bd_om_blend_table(result, bd, om)
     x = np.array([texture_x[c] for c in TEXTURE_CLASSES])
     pwp = t["wilting_point_porosity"].to_numpy() * INCHES_PER_FOOT
     fc = t["field_capacity_porosity"].to_numpy() * INCHES_PER_FOOT
     por = t["total_porosity"].to_numpy() * INCHES_PER_FOOT
-    return fao_diagram(x, pwp, fc, por, implausible=t["implausible"].to_numpy())
+    return soil_water_texture_band_diagram(
+        x, pwp, fc, por,
+        texture_labels=t["texture_class"].astype(str).tolist(),
+        implausible=t["implausible"].to_numpy(),
+    )
 
 def _tbl(bd, om):
-    t = mm_blend_table(result, bd, om)
+    t = soil_water_bd_om_blend_table(result, bd, om)
     out = pd.DataFrame({
         "texture (HSG)": [f"{c} ({HSG[c]})" for c in t["texture_class"]],
         "wilting point": t["wilting_point_porosity"].to_numpy(),
@@ -488,7 +505,7 @@ Expected: heading present (≥1); hover text present (≥1); note the file size.
 
 ```python
 def _blend_tbl(bd, om):
-    t = mm_blend_table(result, bd, om)
+    t = soil_water_bd_om_blend_table(result, bd, om)
     out = pd.DataFrame({
         "texture (HSG)": [f"{c} ({HYDROLOGIC_SOIL_GROUP[c]})" for c in t["texture_class"]],
         "wilting point": t["wilting_point_porosity"].to_numpy(),
@@ -689,7 +706,7 @@ Expected: `References` appears **before** `Developers & Contributors`, and `Envi
 
 - **Spec coverage:** headline figure + linked table on home page (Task 7) and NB2 (Task 8) ✓; shared FAO builder + blend (Tasks 1–2) ✓; category hover with Available/Drainable/Total stormwater capacity, no unavailable (Task 2) ✓; y-axis "Water Storage Capacity" on all FAO plots (Tasks 4,5,7) ✓; wheel-zoom off globally (Task 3, verified 4/6) ✓; plain language + in-place collapse, no reorder (Tasks 10–12) ✓; README Developers & Contributors (Task 13) ✓; Phase 4 deferred behind a review gate (Task 14) ✓; `index.qmd` execution path handled (Task 7 sys.path + `notebooks/` CSV) ✓; page-weight tuning (Task 7 Step 4) ✓; embed/CLAUDE.md constraints in Conventions ✓.
 - **Placeholders:** none — `<topic>`/`<existing … content>` markers in Phase 3 denote *verbatim existing prose to relocate*, not unwritten code; all code steps contain complete code.
-- **Type/name consistency:** `mm_blend_table` columns (`wilting_point_porosity`, `field_capacity_porosity`, `total_porosity`, `available_water_capacity`, `drainable_water`, `implausible`) are used identically in Tasks 1, 5, 7, 8; `fao_diagram(x, pwp, fc, por, *, implausible=, hover=)` signature is called consistently in Tasks 4, 5, 7.
+- **Type/name consistency:** `soil_water_bd_om_blend_table` columns (`wilting_point_porosity`, `field_capacity_porosity`, `total_porosity`, `available_water_capacity`, `drainable_water`, `implausible`) are used identically in Tasks 1, 5, 7, 8; `soil_water_texture_band_diagram(x, pwp, fc, por, *, implausible=, hover=)` signature is called consistently in Tasks 4, 5, 7.
 
 ## Key risks (carried from the spec)
 

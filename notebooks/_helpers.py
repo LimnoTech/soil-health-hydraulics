@@ -12,10 +12,22 @@ import numpy as np
 import pandas as pd
 import hvplot.pandas  # noqa: F401  (registers the .hvplot accessor used by line_with_extrapolation)
 import holoviews as hv
+from bokeh.models import HoverTool
 from IPython.display import HTML
 
 # All three notebooks display volumetric water contents to 3 decimals.
 pd.set_option("display.float_format", lambda v: f"{v:0.3f}")
+
+# Wheel zoom stays in the toolbar but is INACTIVE on load on every figure (users toggle it on).
+hv.extension("bokeh")  # ensure the Bokeh backend is registered before setting opts defaults
+hv.opts.defaults(
+    hv.opts.Curve(active_tools=[]),
+    hv.opts.Area(active_tools=[]),
+    hv.opts.Scatter(active_tools=[]),
+    hv.opts.Bars(active_tools=[]),
+    hv.opts.Overlay(active_tools=[]),
+    hv.opts.Rectangles(active_tools=[]),
+)
 
 
 def show(df, height=360):
@@ -100,3 +112,120 @@ def line_with_extrapolation(result, ycol, ylabel, title, plot_opts=None, **extra
         .opts(show_legend=False)
     )
     return solid * dashed
+
+
+# --- Minasny & McBratney (2018) organic-matter blend (shared by NB2 and the home page) ---
+VB = 0.58  # van Bemmelen factor: OM ≈ OC / VB
+OC_BASELINE_PCT = 1.0  # ROSETTA mineral-baseline organic carbon anchor (%), from UNSODA (NB2 §1)
+
+# Table 2 slopes, mm H2O per 100 mm per +1% OC (= vol %), by USDA texture group
+MM_SLOPES = {
+    "coarse": {"WP": 0.86, "AWC": 1.94, "SAT": 4.59},
+    "medium": {"WP": 0.68, "AWC": 1.79, "SAT": 3.59},
+    "fine":   {"WP": 0.54, "AWC": 1.41, "SAT": 3.23},
+}
+MM_GROUP = {
+    "sand": "coarse", "loamy sand": "coarse", "sandy loam": "coarse", "sandy clay loam": "coarse",
+    "loam": "medium", "silt loam": "medium", "silt": "medium", "clay loam": "medium", "silty clay loam": "medium",
+    "sandy clay": "fine", "silty clay": "fine", "clay": "fine",
+}
+
+
+def soil_water_bd_om_blend_table(result, bd, om, oc_baseline=OC_BASELINE_PCT):
+    """ROSETTA mineral baseline + Minasny & McBratney (2018) organic-matter increments for a
+    single (bulk density `bd`, organic matter `om` %) state — one row per texture class in the
+    canonical sand→clay order of `result`. Volumetric water contents (cm³/cm³).
+
+    Applies M&M's WP/AWC/SAT slopes relative to `oc_baseline` and derives FC = WP + AWC so AWC
+    matches M&M exactly (mirrors NB2's _blend_profile). `implausible` flags blended SAT exceeding
+    the BD-implied pore space (1 − BD/2.65). The single source feeding both the FAO figure and the
+    home-page / NB2 linked table.
+    """
+    base = result.set_index(["texture_class", "bulk_density_g_cm3"])
+    texture_classes = list(result["texture_class"].drop_duplicates())
+    hsg = dict(
+        result[["texture_class", "hydrologic_soil_group"]]
+        .drop_duplicates().itertuples(index=False, name=None)
+    )
+    d_oc = om * VB - oc_baseline  # OM% -> OC%, relative to the mineral-baseline OC
+    rows = []
+    for cls in texture_classes:
+        s = MM_SLOPES[MM_GROUP[cls]]
+        sat0 = base.loc[(cls, bd), "total_porosity"]
+        fc0 = base.loc[(cls, bd), "field_capacity_porosity"]
+        wp0 = base.loc[(cls, bd), "wilting_point_porosity"]
+        wp = max(wp0 + s["WP"] / 100 * d_oc, 0.0)
+        awc = max((fc0 - wp0) + s["AWC"] / 100 * d_oc, 0.0)
+        fc = wp + awc
+        sat = max(sat0 + s["SAT"] / 100 * d_oc, fc)
+        rows.append({
+            "texture_class": cls,
+            "hydrologic_soil_group": hsg[cls],
+            "wilting_point_porosity": wp,
+            "field_capacity_porosity": fc,
+            "total_porosity": sat,
+            "available_water_capacity": awc,
+            "drainable_water": sat - fc,
+            "implausible": sat > (1.0 - bd / 2.65),
+        })
+    df = pd.DataFrame(rows)
+    df["texture_class"] = pd.Categorical(df["texture_class"], categories=texture_classes, ordered=True)
+    return df
+
+
+def soil_water_texture_band_diagram(x, pwp, fc, por, *, texture_labels=None, implausible=None, hover=True):
+    """FAO-style soil-water band diagram for ONE profile (one slider frame).
+
+    `x` = texture x-positions (0..11); `pwp`/`fc`/`por` = wilting point / field capacity / total
+    porosity arrays **already in the plot's y-units** (inches per foot here). `texture_labels` =
+    per-column texture names shown first in the hover tooltip (defaults to "texture <i>" if omitted).
+    Returns an hv.Overlay of: filled bands (orange unavailable / green available / blue drainable),
+    the three boundary curves, the three text labels, optional grey extrapolation spans
+    (`implausible` boolean array), and (if `hover`) an invisible per-texture hover layer reporting
+    the texture plus available / drainable / total stormwater capacity. Visible geometry is identical
+    to the previous per-notebook _*_profile code.
+    """
+    x = np.asarray(x); pwp = np.asarray(pwp); fc = np.asarray(fc); por = np.asarray(por)
+    bands = (
+        hv.Area((x, pwp, pwp * 0), vdims=["y", "y2"]).opts(color="orange", alpha=0.45, line_alpha=0)
+        * hv.Area((x, fc, pwp), vdims=["y", "y2"]).opts(color="green", alpha=0.45, line_alpha=0)
+        * hv.Area((x, por, fc), vdims=["y", "y2"]).opts(color="blue", alpha=0.40, line_alpha=0)
+    )
+    lines = (
+        hv.Curve((x, pwp), label="Permanent wilting point").opts(color="black", line_width=2)
+        * hv.Curve((x, fc), label="Field capacity").opts(color="black", line_width=2)
+        * hv.Curve((x, por), label="Total porosity").opts(color="gray", line_width=1.5, line_dash="dashed")
+    )
+    labels = (
+        hv.Text(8, pwp[8] * 0.5, "Unavailable\nwater").opts(text_color="saddlebrown", text_font_size="9pt")
+        * hv.Text(5, (pwp[5] + fc[5]) / 2, "Available water").opts(text_color="darkgreen", text_font_size="10pt")
+        * hv.Text(2.2, (fc[2] + por[2]) / 2, "Drainable\nwater").opts(text_color="navy", text_font_size="10pt")
+    )
+    overlay = bands * lines * labels
+    if implausible is not None:
+        flagged = x[np.asarray(implausible, dtype=bool)]
+        if len(flagged):
+            overlay = overlay * hv.Overlay(
+                [hv.VSpan(xi - 0.5, xi + 0.5).opts(color="gray", alpha=0.2) for xi in flagged]
+            )
+    if hover:
+        available = fc - pwp
+        drainable = por - fc
+        total = por - pwp
+        if texture_labels is None:
+            texture_labels = [f"texture {int(xi)}" for xi in x]
+        rects = [
+            (xi - 0.5, 0.0, xi + 0.5, max(por_i, 1e-6), tx, av, dr, tot)
+            for xi, por_i, tx, av, dr, tot in zip(x, por, texture_labels, available, drainable, total)
+        ]
+        hover_tool = HoverTool(tooltips=[
+            ("Texture", "@texture"),
+            ("Available water", "@available{0.00} in/ft"),
+            ("Drainable water", "@drainable{0.00} in/ft"),
+            ("Total stormwater capacity", "@total{0.00} in/ft"),
+        ])
+        hover_layer = hv.Rectangles(rects, vdims=["texture", "available", "drainable", "total"]).opts(
+            fill_alpha=0, line_alpha=0, tools=[hover_tool]
+        )
+        overlay = overlay * hover_layer
+    return overlay
