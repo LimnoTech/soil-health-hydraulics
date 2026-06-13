@@ -18,6 +18,101 @@ page. Grey, dashed regions flag physically implausible texture × bulk-density c
 (extrapolation beyond Rosetta's training range).
 :::
 
+## Soil health at a glance: how compaction & organic matter change water storage
+
+Drag the two sliders — **bulk density** (compaction) and **organic matter** — and watch the
+soil-water bands respond. Easing compaction and adding organic matter shift water out of the
+unavailable band into **plant-available** and **drainable** storage. The table below the chart
+lists the same values per soil texture class (volume fraction, cm³/cm³).
+
+```{python}
+#| echo: false
+import sys
+sys.path.insert(0, "notebooks")  # index.qmd executes at the repo root (execute-dir: file)
+
+import numpy as np
+import pandas as pd
+import holoviews as hv
+import panel as pn
+from _helpers import (
+    soil_water_texture_band_diagram,
+    soil_water_bd_om_blend_table,
+    soil_water_table_html,
+)
+
+pn.extension()
+
+result = pd.read_csv("notebooks/rosetta_porosity_by_texture.csv")
+TEXTURE_CLASSES = list(result["texture_class"].drop_duplicates())
+texture_x = {cls: i for i, cls in enumerate(TEXTURE_CLASSES)}
+HSG = dict(result[["texture_class", "hydrologic_soil_group"]].drop_duplicates().itertuples(index=False, name=None))
+texture_ticks = [(i, f"{cls} ({HSG[cls]})") for cls, i in texture_x.items()]
+INCHES_PER_FOOT = 12.0
+
+bulk_densities = [round(float(b), 1) for b in np.sort(result["bulk_density_g_cm3"].unique())]
+om_grid = [round(float(o), 1) for o in np.arange(0.0, 8.0 + 1e-9, 1.0)]
+
+# One shared pair of sliders drives BOTH the figure and the table; placed BETWEEN them.
+_SLIDER_CSS = [":host, :host * { font-size: 1rem; }"]  # enlarge slider title + tick labels
+bd_slider = pn.widgets.DiscreteSlider(
+    name="Bulk density, g/cm³ (higher is more compacted)", options=bulk_densities, value=1.4,
+    width=380, stylesheets=_SLIDER_CSS)
+om_slider = pn.widgets.DiscreteSlider(
+    name="Organic matter (% by weight)", options=om_grid, value=2.0,
+    width=380, stylesheets=_SLIDER_CSS)
+
+
+def _figure(bd, om):
+    t = soil_water_bd_om_blend_table(result, bd, om)
+    x = np.array([texture_x[c] for c in TEXTURE_CLASSES])
+    pwp = t["wilting_point_porosity"].to_numpy() * INCHES_PER_FOOT
+    fc = t["field_capacity_porosity"].to_numpy() * INCHES_PER_FOOT
+    por = t["total_porosity"].to_numpy() * INCHES_PER_FOOT
+    ov = soil_water_texture_band_diagram(
+        x, pwp, fc, por,
+        texture_labels=t["texture_class"].astype(str).tolist(),
+        implausible=t["implausible"].to_numpy(),
+    )
+    return ov.opts(
+        hv.opts.Overlay(width=720, height=520, toolbar="right", legend_position="top_left",
+                        xlabel="texture class (hydrologic soil group); coarse → fine",
+                        ylabel="Water Storage Capacity (inches per foot of soil depth)",
+                        title="Soil water storage vs. texture — ROSETTA + Minasny & McBratney blend"),
+        hv.opts.Curve(xticks=texture_ticks, xrotation=45, ylim=(0, 10)),
+        hv.opts.Area(xticks=texture_ticks, xrotation=45, ylim=(0, 10)),
+    )
+
+
+def _table(bd, om):
+    t = soil_water_bd_om_blend_table(result, bd, om)
+    out = pd.DataFrame({
+        "texture (HSG)": [f"{c} ({HSG[c]})" for c in t["texture_class"]],
+        "wilting point": t["wilting_point_porosity"].to_numpy(),
+        "field capacity": t["field_capacity_porosity"].to_numpy(),
+        "saturation": t["total_porosity"].to_numpy(),
+        "available water": t["available_water_capacity"].to_numpy(),
+        "drainable water": t["drainable_water"].to_numpy(),
+    }).round(3)
+    return pn.pane.HTML(soil_water_table_html(out), width=720)
+
+
+layout = pn.Column(
+    pn.panel(pn.bind(_figure, bd_slider, om_slider)),
+    pn.Row(bd_slider, om_slider),
+    pn.panel(pn.bind(_table, bd_slider, om_slider)),
+    width=790,
+)
+
+# Bake every (bulk density, organic matter) state into static HTML so the sliders work with no
+# kernel (max_opts must exceed the number of options per slider: 12 BD x 9 OM = 108 states).
+layout.embed(max_states=2000, max_opts=40, progress=False)
+```
+
+::: {.callout-note appearance="simple"}
+Figure axis is in **inches per foot of soil depth**; the table lists the same quantities as
+**volume fraction (cm³/cm³)**.
+:::
+
 ## The notebooks
 
 ::: {.grid}

@@ -229,3 +229,23 @@ def soil_water_texture_band_diagram(x, pwp, fc, por, *, texture_labels=None, imp
         )
         overlay = overlay * hover_layer
     return overlay
+
+
+def soil_water_table_html(df):
+    """Styled HTML for the slider-linked storage table, for use inside a Panel ``pn.pane.HTML``
+    (Panel embeds it per widget state, so it stays slider-linked — unlike a Bokeh DataTable, this
+    gives full CSS control). Formatting: **bold, word-wrapped** column headers; data cells and the
+    first (texture) column do NOT wrap, so each texture label stays on one line; the row index is
+    hidden; all rows render with no scrolling."""
+    table_html = df.to_html(index=False, border=0, classes="swt")
+    css = (
+        "<style>"
+        "table.swt{border-collapse:collapse;font-size:0.95rem;font-family:inherit;}"
+        "table.swt th{font-weight:700;white-space:normal;vertical-align:bottom;text-align:right;"
+        "padding:4px 9px;border-bottom:1px solid #bbb;max-width:96px;}"
+        "table.swt th:first-child{text-align:left;white-space:nowrap;max-width:none;}"
+        "table.swt td{white-space:nowrap;text-align:right;padding:3px 9px;}"
+        "table.swt td:first-child{text-align:left;}"
+        "</style>"
+    )
+    return css + table_html

@@ -43,7 +43,7 @@ import holoviews as hv
 from scipy.stats import linregress
 
 # Shared display helper (and the shared pandas float_format, set on import). See notebooks/_helpers.py.
-from _helpers import show, soil_water_texture_band_diagram, soil_water_bd_om_blend_table, VB, OC_BASELINE_PCT, MM_SLOPES, MM_GROUP
+from _helpers import show, soil_water_texture_band_diagram, soil_water_bd_om_blend_table, soil_water_table_html, VB, OC_BASELINE_PCT, MM_SLOPES, MM_GROUP
 
 # ROSETTA texture × bulk-density baseline produced by rosetta_porosity_by_texture.ipynb
 result = pd.read_csv("rosetta_porosity_by_texture.csv")
@@ -303,45 +303,66 @@ blend_line(
 # directly from the ROSETTA baseline + M&M increments so the slider can carry round OM values.
 # dynamic=False embeds every (BD, OM) frame so it works without a live kernel. (OM capped at
 # 8% on a 1% grid to bound the frame count / latency.)
-hv.output(widget_location="bottom")
+import panel as pn
 
-om_grid = np.round(np.arange(0.0, 8.0 + 1e-9, 1.0), 1)  # organic matter %, 0–8 (≈ 0–4.6% OC)
-x_pos = np.array([texture_x[cls] for cls in TEXTURE_CLASSES])
+pn.extension()
+
+om_grid = [round(float(o), 1) for o in np.arange(0.0, 8.0 + 1e-9, 1.0)]  # organic matter %, 0–8
+
+# One shared pair of sliders drives BOTH the figure and the table; placed BETWEEN them. The Panel
+# layout is embedded (embed=True) so every (BD, OM) state works in static HTML without a kernel.
+# The styled HTML table (soil_water_table_html) gives bold/wrapped headers, a hidden index, full
+# texture names on one line, and all rows — formatting a Bokeh DataTable cannot express.
+_SLIDER_CSS = [":host, :host * { font-size: 1rem; }"]  # enlarge slider title + tick labels
+bd_slider = pn.widgets.DiscreteSlider(
+    name="Bulk density, g/cm³ (higher is more compacted)",
+    options=[round(float(b), 1) for b in bulk_densities], value=1.4, width=380, stylesheets=_SLIDER_CSS)
+om_slider = pn.widgets.DiscreteSlider(
+    name="Organic matter (% by weight)", options=om_grid, value=2.0, width=380, stylesheets=_SLIDER_CSS)
 
 
-def _blend_profile(bd, om):
+def _blend_figure(bd, om):
     t = soil_water_bd_om_blend_table(result, bd, om)
     x = np.array([texture_x[cls] for cls in TEXTURE_CLASSES])
     pwp = t["wilting_point_porosity"].to_numpy() * INCHES_PER_FOOT
     fc = t["field_capacity_porosity"].to_numpy() * INCHES_PER_FOOT
     por = t["total_porosity"].to_numpy() * INCHES_PER_FOOT
-    return soil_water_texture_band_diagram(
+    ov = soil_water_texture_band_diagram(
         x, pwp, fc, por,
         texture_labels=t["texture_class"].astype(str).tolist(),
         implausible=t["implausible"].to_numpy(),
     )
+    return ov.opts(
+        hv.opts.Overlay(width=720, height=520, toolbar="right", legend_position="top_left",
+                        xlabel="texture class (hydrologic soil group); coarse → fine",
+                        ylabel="Water Storage Capacity (inches per foot of soil depth)",
+                        title="Soil water storage vs. texture — ROSETTA + Minasny & McBratney blend"),
+        hv.opts.Curve(xticks=texture_ticks, xrotation=45, ylim=(0, 10)),
+        hv.opts.Area(xticks=texture_ticks, xrotation=45, ylim=(0, 10)),
+    )
 
 
-blend_profiles = hv.HoloMap(
-    {(bd, om): _blend_profile(bd, om) for bd in bulk_densities for om in om_grid},
-    kdims=[
-        hv.Dimension("Bulk density, g/cm³ (higher is more compacted)", default=1.4, value_format=lambda v: f"{v:.1f}"),
-        hv.Dimension("Organic matter (% by weight)", default=2.0, value_format=lambda v: f"{v:.1f}"),
-    ],
+def _blend_table(bd, om):
+    t = soil_water_bd_om_blend_table(result, bd, om)
+    out = pd.DataFrame({
+        "texture (HSG)": [f"{c} ({HYDROLOGIC_SOIL_GROUP[c]})" for c in t["texture_class"]],
+        "wilting point": t["wilting_point_porosity"].to_numpy(),
+        "field capacity": t["field_capacity_porosity"].to_numpy(),
+        "saturation": t["total_porosity"].to_numpy(),
+        "available water": t["available_water_capacity"].to_numpy(),
+        "drainable water": t["drainable_water"].to_numpy(),
+    }).round(3)
+    return pn.pane.HTML(soil_water_table_html(out), width=720)
+
+
+blend_layout = pn.Column(
+    pn.panel(pn.bind(_blend_figure, bd_slider, om_slider)),
+    pn.Row(bd_slider, om_slider),
+    pn.panel(pn.bind(_blend_table, bd_slider, om_slider)),
+    width=790,
 )
 
-blend_profiles.opts(
-    hv.opts.Overlay(
-        width=820,
-        height=520,
-        legend_position="top_left",
-        xlabel="texture class (hydrologic soil group); coarse → fine",
-        ylabel="Water Storage Capacity (inches per foot of soil depth)",
-        title="Soil water vs. texture — ROSETTA + Minasny & McBratney blend\n{dimensions}",
-    ),
-    hv.opts.Curve(xticks=texture_ticks, xrotation=45, ylim=(0, 10)),
-    hv.opts.Area(xticks=texture_ticks, xrotation=45, ylim=(0, 10)),
-)
+blend_layout.embed(max_states=2000, max_opts=40, progress=False)
 
 # %% [markdown]
 # ## 3. Organic-matter sensitivity (Saxton–Rawls 2006)
