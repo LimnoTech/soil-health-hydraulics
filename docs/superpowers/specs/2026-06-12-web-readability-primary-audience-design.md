@@ -199,3 +199,39 @@ The FAO-plot **y-axis label** also changes from "Water volume (inches per foot o
 - Hover on non-FAO plots (NB3, NB1 line/bar plots).
 - Demoting README per-notebook "Key methodologies" blocks.
 - Any change to the underlying Rosetta / M&M / Saxton–Rawls science.
+
+## As-built notes (implementation, 2026-06-13)
+
+What actually shipped, including deviations from the design above:
+
+**Shared code (`notebooks/_helpers.py`).** Final names (renamed from the design's working names
+during implementation): `soil_water_bd_om_blend_table` (was `mm_blend_table`),
+`soil_water_texture_band_diagram` (was `fao_diagram`), plus `soil_water_table_html` (the styled
+HTML storage table). A short-lived `soil_water_table_div` helper was tried and removed (see below).
+Global wheel-zoom-off default and the M&M blend constants live here too.
+
+**Hover & labels.** Tooltip on the band diagrams shows **Texture, Available water, Drainable water,
+Total stormwater capacity** (unavailable omitted), via an invisible `hv.Rectangles` layer. FAO-plot
+y-axis label is **"Water Storage Capacity (inches per foot of soil depth)"**.
+
+**Headline figure + table — built with Panel, not a HoloMap layout.** The design assumed a
+`HoloMap`-of-`Layout(figure, table)`. In practice an `hv.Table` (Bokeh DataTable) can't give the
+requested table formatting (bold/wrapped headers, hidden index, full-width texture column), and an
+`hv.Div` HTML table **does not embed inline in the Quarto pipeline** (it leaked as raw HTML — a
+Quarto-capture artifact; note `hv.save` *does* embed an `hv.Div`-in-HoloMap correctly, confirmed by
+test, but that route needs an `<iframe>`). The shipped solution composes the figure +
+`pn.pane.HTML(soil_water_table_html(...))` in a **Panel** `pn.Column` with `embed=True`
+(`max_opts=40` to bake all 12 BD × 9 OM = 108 states), used on **both** `index.qmd` and NB2 §2.
+The shared **sliders sit *between* the figure and table** (the design's first-choice placement,
+unachievable with a HoloMap widget but natural in Panel). Figure `width=720` with `toolbar="right"`;
+table font `0.95rem`; slider text enlarged to `1rem`. Page weight (accepted at full resolution):
+home ~5.5 MB, NB2 ~6.8 MB.
+
+**`_quarto.yml`.** Added an explicit `render:` allowlist (`index.qmd` + the three notebook **`.py`**
+files — Quarto's canonical input for jupytext-paired notebooks) so the internal `docs/` planning
+folder is **not** rendered into the published site.
+
+**Phasing as executed.** Phases 1–3 implemented and committed per the plan; Phase 3 was the
+plain-language + in-place-collapse pass (no section reordering) plus the README
+**"Developers & Contributors"** bottom section. Optional **Phase 4** (per-notebook section
+reordering) remains gated on the post-Phase-3 review.

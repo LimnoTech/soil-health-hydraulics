@@ -16,7 +16,9 @@
 # %% [markdown]
 # # Soil porosity by USDA texture class and bulk density (Rosetta)
 #
-# This notebook uses the **Rosetta** pedotransfer functions ([usda-ars-ussl/rosetta-soil](https://github.com/usda-ars-ussl/rosetta-soil)) to estimate, for **every USDA soil texture class** (using representative *median* sand/silt/clay values) and for **bulk densities from 0.8 to 1.9 g/cm³ in 0.1 steps**:
+# This notebook produces **interactive charts** showing how soil texture, compaction (bulk density), and organic matter change a soil's capacity to store and release water. Charts cover all 12 USDA texture classes across bulk densities from 0.8 to 1.9 g/cm³ — useful for stormwater design, soil-health assessment, and land-management decisions.
+#
+# Using the **Rosetta** pedotransfer functions ([usda-ars-ussl/rosetta-soil](https://github.com/usda-ars-ussl/rosetta-soil)), we estimate for each texture class and bulk density:
 #
 # | Output | Definition |
 # |---|---|
@@ -25,12 +27,16 @@
 # | **Permanent-wilting-point porosity** | Volumetric water content at 1500 kPa (= 15000 cm suction) |
 # | **Saturated hydraulic conductivity** | Ksat (cm/day) — Rosetta's conductivity output |
 #
+# ::: {.callout-note collapse="true"}
+# ## For researchers: van Genuchten–Mualem retention model
+#
 # Rosetta predicts the **van Genuchten** water-retention parameters (θᵣ, θₛ, α, n) from texture + bulk density. We then evaluate the retention curve at the field-capacity and wilting-point suctions.
 #
 # **van Genuchten (1980) retention model:**
 # $$\theta(h) = \theta_r + \frac{\theta_s - \theta_r}{\left[1 + (\alpha\,h)^{n}\right]^{m}}, \qquad m = 1 - \tfrac{1}{n}$$
 #
 # where $h$ is the suction head [cm] and $\alpha$ [1/cm], $n$ [-], $\theta_r$, $\theta_s$ are Rosetta outputs.
+# :::
 #
 # **Environment:** built with [pixi](https://pixi.sh) (`pixi.toml`). Run `pixi install`, then open this notebook with the `soil_modeling` kernel (`pixi run jupyter lab`).
 
@@ -46,7 +52,7 @@ from _helpers import show, vg_theta, mualem_k, line_with_extrapolation, soil_wat
 # %% [markdown]
 # ## 1. Representative (median) texture values for each USDA class
 #
-# Sand / silt / clay percentages below are the widely used central (representative) values for each of the 12 USDA texture classes. Each triplet sums to 100% and plots inside the correct region of the USDA texture triangle. Adjust these if you prefer a different convention (e.g. the geometric or modified centroids of Levi, 2017, SSSAJ).
+# Each texture class is represented by a single sand/silt/clay triplet — the widely used central (representative) values. Each triplet sums to 100% and falls inside the correct region of the USDA texture triangle. Adjust these if you prefer a different convention (e.g. the geometric or modified centroids of Levi, 2017, SSSAJ).
 
 # %%
 # texture_class: (sand %, silt %, clay %)
@@ -100,6 +106,8 @@ show(texture_df)
 
 # %% [markdown]
 # ## 2. Bulk-density range and suction set-points
+#
+# Bulk density (g/cm³) is a direct measure of soil compaction: lower values indicate more pore space; higher values reflect a more compacted, denser soil. Field capacity (33 kPa) and permanent wilting point (1500 kPa) are the standard agronomic thresholds that bound plant-available water.
 
 # %%
 # Bulk density 0.8 -> 1.9 g/cm3 in 0.1 steps (rounded to avoid float drift). Capped at 1.9:
@@ -116,16 +124,24 @@ print(f"{len(bulk_densities)} bulk densities: {bulk_densities}")
 # %% [markdown]
 # ## 3. van Genuchten–Mualem helpers
 #
+# ::: {.callout-note collapse="true"}
+# ## For researchers: van Genuchten–Mualem retention model
+#
 # `vg_theta` gives the retention curve θ(h); `mualem_k` gives the **unsaturated** hydraulic
 # conductivity K(h) from Rosetta's Mualem–van Genuchten parameters (matching-point `K0` and
 # pore-connectivity `L`, columns 5–6 of the Rosetta output). Used for K at field capacity /
 # wilting point (§4) and carried in the CSV for the hydraulic-conductivity notebook (Notebook 3).
 # Both functions are shared with Notebook 3 and live in **`notebooks/_helpers.py`** (imported above).
+# :::
 
 # %% [markdown]
 # ## 4. Run Rosetta and build the results DataFrame
 #
+# ::: {.callout-note collapse="true"}
+# ## For researchers: how Rosetta is run
+#
 # Rosetta input columns are `[sand%, silt%, clay%, bulk_density]`; model version **3** (2017 recalibration) is used. The mean output columns are `[θᵣ, θₛ, α, n, Ksat, K0, L]` with α in 1/cm and n dimensionless (linear, not log₁₀). We keep **Ksat** (saturated hydraulic conductivity, column 4) as `ksat_cm_day` (cm/day) and `ksat_in_hr` (in/hr = cm/day ÷ 24 ÷ 2.54, the usual stormwater unit). We also retain the **Mualem–van Genuchten** parameters `theta_r, vg_alpha_1cm, vg_n, k0_cm_day, mualem_L` (used by the hydraulic-conductivity notebook, **Notebook 3**) and the unsaturated K at field capacity / wilting point (`k_fc_cm_day`, `k_wp_cm_day`).
+# :::
 
 # %%
 # Build every (texture class) x (bulk density) combination
@@ -255,6 +271,11 @@ line_with_extrapolation(
 )
 
 # %% [markdown]
+# ::: {.callout-tip appearance="simple"}
+# **Takeaway:** As bulk density increases — reflecting more compacted soil — total porosity, field capacity, and available water all decline across every texture class, so compaction directly reduces the water a soil can hold and release to plants and infiltration.
+# :::
+
+# %% [markdown]
 # ## 7. Soil water partitioning by texture
 #
 # Horizontal stacked bars (one per texture class, in the order defined above) partitioning the pore space into three volumetric water states, in the style of the [AQP water-retention-curve plots](https://ncss-tech.github.io/AQP/aqp/water-retention-curves.html):
@@ -347,6 +368,11 @@ marks_hmap = hv.HoloMap({bd: _implausible_marks(bd) for bd in bulk_densities}, k
 )
 
 # %% [markdown]
+# ::: {.callout-tip appearance="simple"}
+# **Takeaway:** Fine-textured soils (clay, silty clay loam) hold more total and unavailable water, while medium-textured soils (loam, silt loam) typically offer the highest plant-available water — the green band — making them most productive for crops and vegetation.
+# :::
+
+# %% [markdown]
 # ## 8. Soil water vs. texture (transposed line view)
 #
 # The same three water states as Section 7, transposed and drawn as a line/area diagram in the style of the classic FAO available-water figure: **texture on the x-axis** (coarse → fine), **water volume on the y-axis** expressed as **inches of water per foot of soil depth** (volumetric water content × 12), with the *permanent wilting point*, *field capacity*, and *total porosity* curves bounding the filled bands:
@@ -409,3 +435,8 @@ profiles.opts(
     hv.opts.Curve(xticks=texture_ticks, xrotation=45, ylim=(0, 0.7 * INCHES_PER_FOOT)),
     hv.opts.Area(xticks=texture_ticks, xrotation=45, ylim=(0, 0.7 * INCHES_PER_FOOT)),
 )
+
+# %% [markdown]
+# ::: {.callout-tip appearance="simple"}
+# **Takeaway:** Loam and silt loam soils store the most plant-available water (roughly 2–2.5 inches per foot of depth), while sandy soils drain quickly and clay soils lock much of their water below the wilting point — a pattern that shifts noticeably as you move the bulk-density slider toward more compacted values.
+# :::

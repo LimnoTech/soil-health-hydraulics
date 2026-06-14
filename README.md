@@ -16,61 +16,6 @@ Calculations are based on USDA [Rosetta v3](https://github.com/usda-ars-ussl/ros
 `rosetta_porosity_by_texture.csv`); then `2_organic_matter_water_holding.ipynb` and
 `3_rosetta_hydraulic_conductivity.ipynb`, which both read that CSV (independently of each other).
 
-### Environment (pixi)
-
-Built with [pixi](https://pixi.sh) — see [pixi.toml](pixi.toml).
-
-```bash
-pixi install
-pixi run jupyter lab    # open notebooks/ and run Notebook 1 first, then 2 and 3
-```
-
-Each notebook is paired with a [jupytext](https://jupytext.readthedocs.io/) `py:percent`
-script (`*.py` alongside the `*.ipynb`) — the diff-friendly version to review and commit. After
-editing either file, run e.g. `pixi run jupytext --sync notebooks/<name>.py` to keep the pair in
-sync (the `.py` holds code/markdown; the `.ipynb` holds outputs). Plots are embedded as
-self-contained HoloViews/Bokeh output, so the saved notebooks are interactive without a live
-kernel.
-
-Functions shared by more than one notebook live in
-[`notebooks/_helpers.py`](notebooks/_helpers.py) — the scrollable-table display helper, the
-van Genuchten–Mualem retention/conductivity functions, and the extrapolation-aware bulk-density
-line plot. It is a plain importable module (not a paired notebook); the notebooks `import` it at
-the top and run in `notebooks/`, so it resolves both in Jupyter and during the Quarto build.
-
----
-
-## Interactive website (GitHub Pages)
-
-The notebooks are published as a static, **fully interactive** website — readers can move the
-bulk-density / organic-matter sliders, hover, pan, and zoom right in the browser, with no install:
-
-**<https://limnotech.github.io/soil-health-hydraulics/>**
-
-### How it works
-
-The site is built with **[Quarto](https://quarto.org)** ([`_quarto.yml`](_quarto.yml),
-[`index.qmd`](index.qmd)), with code folded by default.
-
-- Build locally with **`pixi run render`** (or `pixi run preview` for a live server); output goes
-  to `_site/`.
-- Quarto **executes** the notebooks (run Notebook 1 first so its CSV exists) and **freezes** the
-  results into [`_freeze/`](_freeze) — which **is committed**. When the cache matches, CI renders
-  *from it* without re-executing (fast); otherwise CI re-executes (the committed
-  `notebooks/data_temp/unsoda_bd_om.csv` lets Notebook 2 run fully). Either way it **deploys** — a
-  stale cache is a non-fatal warning, never a blocked deploy.
-- **Re-render and commit `_freeze/` after editing a notebook** to keep CI fast.
-- [`.github/workflows/publish.yml`](.github/workflows/publish.yml) renders and deploys on every
-  push to `main` using the same pixi environment.
-
-> [!IMPORTANT]
-> Quarto must **execute or freeze** the notebooks — that is what preserves the interactive
-> HoloViews/Bokeh embeds (slider/hover/zoom). Rendering *pre-executed* `.ipynb` with execution
-> disabled silently strips those embeds (dead plots). `execute-dir: file` is set so each notebook
-> runs in `notebooks/` and its relative CSV read resolves.
-
----
-
 ## Notebook 1 — ROSETTA porosity by texture and bulk density
 
 Uses the [Rosetta](https://github.com/usda-ars-ussl/rosetta-soil) pedotransfer functions to
@@ -236,3 +181,65 @@ macropores/structure), so field infiltration is often 1–2 orders of magnitude 
 - Schaap & Leij (2000), Improved prediction of unsaturated hydraulic conductivity with the Mualem–van Genuchten model, *SSSAJ* 64:843–851
 - Rawls, Brakensiek & Miller (1983), Green-Ampt infiltration parameters from soils data, *J. Hydraulic Engineering* 109:62–70
 - Nemes, Schaap, Leij & Wösten (2001), [Description of the unsaturated soil hydraulic database UNSODA version 2.0](https://www.sciencedirect.com/science/article/abs/pii/S0022169401004656), *J. Hydrology* 251:151–162 — data: [UNSODA 2.0 on Ag Data Commons](https://agdatacommons.nal.usda.gov/articles/dataset/24851832)
+
+---
+
+## Developers & Contributors
+
+### Environment (pixi)
+
+Built with [pixi](https://pixi.sh) — see [pixi.toml](pixi.toml).
+
+```bash
+pixi install
+pixi run jupyter lab    # open notebooks/ and run Notebook 1 first, then 2 and 3
+```
+
+Each notebook is paired with a [jupytext](https://jupytext.readthedocs.io/) `py:percent`
+script (`*.py` alongside the `*.ipynb`) — the diff-friendly version to review and commit. After
+editing either file, run e.g. `pixi run jupytext --sync notebooks/<name>.py` to keep the pair in
+sync (the `.py` holds code/markdown; the `.ipynb` holds outputs). Plots are embedded as
+self-contained HoloViews/Bokeh output, so the saved notebooks are interactive without a live
+kernel.
+
+Functions shared by more than one notebook live in
+[`notebooks/_helpers.py`](notebooks/_helpers.py) — the scrollable-table display helper, the
+van Genuchten–Mualem retention/conductivity functions, the extrapolation-aware bulk-density line
+plot, and the ROSETTA + Minasny–McBratney organic-matter blend (`soil_water_bd_om_blend_table`),
+its FAO band-diagram builder (`soil_water_texture_band_diagram`), and the storage-table HTML
+(`soil_water_table_html`) used by the home page and Notebook 2. It is a plain importable module
+(not a paired notebook); the notebooks `import` it at the top and run in `notebooks/`, so it
+resolves both in Jupyter and during the Quarto build.
+
+### Interactive website (GitHub Pages)
+
+The notebooks are published as a static, **fully interactive** website — readers can move the
+bulk-density / organic-matter sliders, hover, pan, and zoom right in the browser, with no install:
+
+**<https://limnotech.github.io/soil-health-hydraulics/>**
+
+#### How it works
+
+The site is built with **[Quarto](https://quarto.org)** ([`_quarto.yml`](_quarto.yml),
+[`index.qmd`](index.qmd)), with code folded by default. The home page (`index.qmd`) leads with a
+**"Soil health at a glance"** summary — the headline two-slider blend figure and a slider-linked
+storage table, composed with [Panel](https://panel.holoviz.org) (`embed=True`) so every slider
+state works in static HTML. `_quarto.yml` lists the render inputs explicitly so the internal
+`docs/` planning folder stays out of the published site.
+
+- Build locally with **`pixi run render`** (or `pixi run preview` for a live server); output goes
+  to `_site/`.
+- Quarto **executes** the notebooks (run Notebook 1 first so its CSV exists) and **freezes** the
+  results into [`_freeze/`](_freeze) — which **is committed**. When the cache matches, CI renders
+  *from it* without re-executing (fast); otherwise CI re-executes (the committed
+  `notebooks/data_temp/unsoda_bd_om.csv` lets Notebook 2 run fully). Either way it **deploys** — a
+  stale cache is a non-fatal warning, never a blocked deploy.
+- **Re-render and commit `_freeze/` after editing a notebook** to keep CI fast.
+- [`.github/workflows/publish.yml`](.github/workflows/publish.yml) renders and deploys on every
+  push to `main` using the same pixi environment.
+
+> [!IMPORTANT]
+> Quarto must **execute or freeze** the notebooks — that is what preserves the interactive
+> HoloViews/Bokeh embeds (slider/hover/zoom). Rendering *pre-executed* `.ipynb` with execution
+> disabled silently strips those embeds (dead plots). `execute-dir: file` is set so each notebook
+> runs in `notebooks/` and its relative CSV read resolves.

@@ -390,6 +390,13 @@ Expected: both ≥ 1. **Open the HTML**: the §2 two-slider diagram and §3 OM-s
 
 # PHASE 2 — Home-page summary section (+ NB2 linked table)
 
+> **AS-BUILT (2026-06-13):** Tasks 7–8 below describe the original `HoloMap` + `hv.Table` approach.
+> It was **superseded during implementation by a Panel `embed=True` layout** — `pn.Column(figure,
+> pn.Row(bd_slider, om_slider), pn.pane.HTML(soil_water_table_html(...)))` with sliders **between**
+> the figure and table — because `hv.Table` can't format the table as required and `hv.Div` doesn't
+> embed inline in Quarto. Same on `index.qmd` and NB2 §2. See the spec's "As-built notes" for the
+> full rationale and parameters (figure width 720, toolbar right, fonts, page weight).
+
 ### Task 7: Build the home-page summary (headline figure + slider-linked table)
 
 **Files:**

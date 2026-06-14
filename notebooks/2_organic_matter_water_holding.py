@@ -16,24 +16,23 @@
 # %% [markdown]
 # # Organic-matter effects on soil water holding
 #
-# Companion to **`rosetta_porosity_by_texture.ipynb`**. That notebook estimates the ROSETTA
-# texture × bulk-density baseline (total porosity, field capacity, wilting point) for every
-# USDA texture class and writes **`rosetta_porosity_by_texture.csv`** — **run it first**.
+# Organic matter and bulk density are the two soil properties practitioners can most directly
+# influence through management. This notebook shows how increasing organic matter — and easing
+# compaction — shifts water into **plant-available storage** (field capacity − wilting point)
+# and **drainable storage** (saturation − field capacity), the fast-draining pore space that
+# matters most for stormwater infiltration and detention. Gains are largest in coarse-textured
+# soils and diminish in clays.
 #
-# We first establish ROSETTA's **mineral-baseline organic carbon** (Section 1), then layer
-# **organic-matter** effects on top, two ways:
+# Two methods are compared across all 12 USDA texture classes:
 #
-# - **Section 1 — Mineral-baseline OC (UNSODA 2.0):** estimate the organic carbon implicit in
-#   ROSETTA's mineral baseline, used as the anchor for the blend.
-# - **Section 2 — ROSETTA + Minasny & McBratney (2018):** ROSETTA's mineral baseline plus M&M's
-#   empirical organic-carbon increments (the OC sensitivity preferred over Saxton–Rawls).
+# - **Section 2 — ROSETTA + Minasny & McBratney (2018):** ROSETTA's mineral baseline plus
+#   M&M's empirical organic-carbon increments (the OC sensitivity preferred over Saxton–Rawls).
 #   **Two sliders: mineral bulk density and organic matter (0–8 %).**
 # - **Section 3 — Saxton & Rawls (2006):** an independent, self-contained PTF taking
 #   sand/clay/OM directly, with a validation of its OC sensitivity against M&M (§3.1).
 #
-# Two outputs get equal billing for our **stormwater** audience: **available water**
-# (FC − WP, plant-available) and **drainable water** (SAT − FC), the fast-draining pore
-# space relevant to infiltration / detention storage.
+# Section 1 (collapsible below) documents how we established ROSETTA's mineral-baseline
+# organic carbon — the anchor point for the Section 2 blend.
 
 # %%
 import numpy as np
@@ -70,6 +69,9 @@ show(result)
 # %% [markdown]
 # ## 1. Mineral-baseline organic carbon (from UNSODA 2.0)
 #
+# ::: {.callout-note collapse="true"}
+# ## For researchers: ROSETTA mineral-baseline organic carbon (UNSODA)
+#
 # ROSETTA has no OC input, but its training samples (UNSODA + others) are mineral-dominated
 # soils that *do* carry organic carbon — so the ROSETTA prediction is a **nominal baseline at
 # OC > 0**, not a true organic-free (OC = 0) soil. Before blending in any organic-matter effect
@@ -83,6 +85,7 @@ show(result)
 #
 # `data_temp/` is git-ignored; run `pixi run python notebooks/fetch_unsoda.py` to (re)create
 # the UNSODA extract read below.
+# :::
 
 # %%
 import os
@@ -151,10 +154,21 @@ else:
 # %% [markdown]
 # ## 2. ROSETTA + organic-matter modifier (Minasny & McBratney 2018)
 #
-# Keep **ROSETTA's** texture + bulk-density skill for the *mineral* soil baseline (Section 1),
-# then add the **empirical organic-carbon increments** from **Minasny & McBratney (2018) Table 2**
-# — an OC sensitivity derived from >50,000 measurements and preferred here over Saxton–Rawls
-# (see §3.1). Per **+1 % organic carbon** (= +10 g C kg⁻¹), by USDA texture group:
+# The interactive diagram and line plots below show how available and drainable water change
+# as you add organic matter and adjust compaction across all 12 USDA texture classes.
+# Use the **bulk density slider** to represent compaction (higher = more compacted) and the
+# **organic matter slider** to explore realistic management scenarios. The low-BD + high-OM
+# corner represents a healthy, well-structured soil; the high-BD + low-OM corner a compacted,
+# depleted one. Greyed texture columns mark physically implausible BD × OM combinations.
+#
+# ::: {.callout-note collapse="true"}
+# ## For researchers: blend method, M&M slopes, and caveats
+#
+# The approach keeps **ROSETTA's** texture + bulk-density skill for the *mineral* soil baseline
+# (Section 1), then adds the **empirical organic-carbon increments** from
+# **Minasny & McBratney (2018) Table 2** — an OC sensitivity derived from >50,000 measurements
+# and preferred here over Saxton–Rawls (see §3.1). Per **+1 % organic carbon**
+# (= +10 g C kg⁻¹), by USDA texture group:
 #
 # | M&M group | ΔWP | ΔAWC | ΔSAT  (mm 100 mm⁻¹ per 1 % OC) |
 # | --- | --- | --- | --- |
@@ -189,6 +203,7 @@ else:
 # texture columns are **greyed** where the blended
 # saturation exceeds the BD-implied pore space (1 − BD/2.65) — physically impossible, i.e.
 # extrapolation at that BD × OM (mirrors Notebook 1's `implausible_bd` flag).
+# :::
 
 # %%
 # ROSETTA mineral baseline (per bulk density) + additive Minasny & McBratney (2018) OC
@@ -284,6 +299,13 @@ blend_line(
     (0, 0.42),
 )
 
+# %% [markdown]
+# ::: {.callout-tip appearance="simple"}
+# **Takeaway:** In well-managed, low-compaction soils, even modest organic matter gains
+# (1–2 % OC) measurably increase plant-available water — most in sandy and loamy soils,
+# least in heavy clays.
+# :::
+
 # %%
 # DRAINABLE water (saturation − field capacity) vs. organic carbon — the rapidly draining pore
 # space that matters for stormwater storage / infiltration. BD slider; extrapolated (BD, OC)
@@ -296,6 +318,13 @@ blend_line(
     "ROSETTA + M&M blend: DRAINABLE water vs. organic carbon — {dimensions}",
     (0, 0.60),
 )
+
+# %% [markdown]
+# ::: {.callout-tip appearance="simple"}
+# **Takeaway:** Organic matter increases the fast-draining (macro)pore space most strongly in
+# coarse soils — the same soils that most benefit for stormwater infiltration — while heavy
+# clays see smaller and less consistent gains.
+# :::
 
 # %%
 # FAO-style transposed diagram for the ROSETTA + M&M blend, with TWO sliders: mineral bulk
@@ -365,7 +394,17 @@ blend_layout = pn.Column(
 blend_layout.embed(max_states=2000, max_opts=40, progress=False)
 
 # %% [markdown]
+# ::: {.callout-tip appearance="simple"}
+# **Takeaway:** Adding organic matter and easing compaction together shift water into both
+# plant-available and drainable storage — gains are strongest in coarse-textured soils and
+# diminish toward clays. The realistic management path runs along the low-BD + high-OM diagonal.
+# :::
+
+# %% [markdown]
 # ## 3. Organic-matter sensitivity (Saxton–Rawls 2006)
+#
+# ::: {.callout-note collapse="true"}
+# ## For researchers: Saxton–Rawls alternative and validation
 #
 # An independent alternative to Section 2's blend: the **Saxton & Rawls (2006)** pedotransfer
 # functions, which take **sand, clay, and organic-matter %** directly and were developed from
@@ -373,6 +412,7 @@ blend_layout.embed(max_states=2000, max_opts=40, progress=False)
 # it gives a smaller, and for clays negative, OC effect than Minasny & McBratney.
 #
 # Restricted to its calibrated range, **OM ≤ 8 % by weight** (≈ 4.6 % organic carbon).
+# :::
 
 # %%
 def saxton_rawls(sand_frac, clay_frac, om_pct):
@@ -481,6 +521,9 @@ sr_profiles.opts(
 # %% [markdown]
 # ### 3.1 Validation: ΔAWC/ΔOC vs. Minasny & McBratney (2018)
 #
+# ::: {.callout-note collapse="true"}
+# ## For researchers: Saxton–Rawls vs. M&M AWC sensitivity comparison
+#
 # Do the two PTF families agree on how much available water organic carbon adds? We compute the
 # Saxton–Rawls **ΔAWC per +1 % organic carbon** for each texture class — over the same
 # **OC 0.5 % → 1.5 %** interval M&M used for PTF-derived slopes (OC = 0.58·OM) — then average by
@@ -491,6 +534,7 @@ sr_profiles.opts(
 # clays** — a known feature of the Rawls/Saxton–Rawls lineage (M&M note their neural net "did not
 # show a negative effect with an increase in OC for clay content larger than 60 %"). This is why
 # Section 2 builds the blend on the M&M increments rather than Saxton–Rawls.
+# :::
 
 # %%
 # Saxton–Rawls ΔAWC/ΔOC vs. Minasny & McBratney (2018) Table 2.
