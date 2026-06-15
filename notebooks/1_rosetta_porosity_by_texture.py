@@ -102,7 +102,7 @@ texture_df.insert(1, "hydrologic_soil_group", texture_df["texture_class"].map(HY
 
 # sanity check: each class sums to 100%
 assert (texture_df[["sand_pct", "silt_pct", "clay_pct"]].sum(axis=1) == 100).all()
-show(texture_df)
+display(texture_df)
 
 # %% [markdown]
 # ## 2. Bulk-density range and suction set-points

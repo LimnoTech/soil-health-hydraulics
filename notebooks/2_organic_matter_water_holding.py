@@ -26,10 +26,10 @@
 # Two methods are compared across all 12 USDA texture classes:
 #
 # - **Section 2 — ROSETTA + Minasny & McBratney (2018):** ROSETTA's mineral baseline plus
-#   M&M's empirical organic-carbon increments (the OC sensitivity preferred over Saxton–Rawls).
+#   Minasny's & McBratney's empirical organic-carbon increments (the OC sensitivity preferred over Saxton–Rawls).
 #   **Two sliders: mineral bulk density and organic matter (0–8 %).**
-# - **Section 3 — Saxton & Rawls (2006):** an independent, self-contained PTF taking
-#   sand/clay/OM directly, with a validation of its OC sensitivity against M&M (§3.1).
+# - **Section 3 — Comparison to Saxton & Rawls (2006):** an independent, self-contained PTF taking
+#   sand/clay/OM directly, with a validation of its OC sensitivity against Minasny & McBratney (§3.1).
 #
 # Section 1 (collapsible below) documents how we established ROSETTA's mineral-baseline
 # organic carbon — the anchor point for the Section 2 blend.
@@ -81,7 +81,7 @@ show(result)
 # fit separately for topsoil, subsoil, and all mineral data, with the slopes/intercepts/R²/p
 # reported in the accompanying table. For the mineral subset (OM ≤ 20 %): all-horizon mean ≈ 0.9 %
 # OC; **mineral topsoil (≤15 cm) median ≈ 1.1 % OC**. We anchor ROSETTA at **`OC_BASELINE_PCT`
-# (default 1.0 % OC)**; Section 2 then applies the M&M increments *relative to that* baseline.
+# (default 1.0 % OC)**; Section 2 then applies the Minasny & McBratney increments *relative to that* baseline.
 #
 # `data_temp/` is git-ignored; run `pixi run python notebooks/fetch_unsoda.py` to (re)create
 # the UNSODA extract read below.
@@ -162,7 +162,7 @@ else:
 # depleted one. Greyed texture columns mark physically implausible BD × OM combinations.
 #
 # ::: {.callout-note collapse="true"}
-# ## For researchers: blend method, M&M slopes, and caveats
+# ## For researchers: Minasny & McBratney slopes, blend method, and caveats
 #
 # The approach keeps **ROSETTA's** texture + bulk-density skill for the *mineral* soil baseline
 # (Section 1), then adds the **empirical organic-carbon increments** from
@@ -170,7 +170,7 @@ else:
 # and preferred here over Saxton–Rawls (see §3.1). Per **+1 % organic carbon**
 # (= +10 g C kg⁻¹), by USDA texture group:
 #
-# | M&M group | ΔWP | ΔAWC | ΔSAT  (mm 100 mm⁻¹ per 1 % OC) |
+# | Minasny & McBratney group | ΔWP | ΔAWC | ΔSAT  (mm 100 mm⁻¹ per 1 % OC) |
 # | --- | --- | --- | --- |
 # | Coarse | 0.86 | 1.94 | 4.59 |
 # | Medium | 0.68 | 1.79 | 3.59 |
@@ -184,20 +184,20 @@ else:
 # - SAT(OC) = θₛ\_ROSETTA + (ΔSAT/100)·(OC − OC_base)
 # - FC(OC)  = WP + AWC  ;  **drainable = SAT − FC**
 #
-# We apply M&M's **WP, AWC and SAT** slopes — the three quantities that define the unavailable /
-# available / drainable bands — and *derive* FC = WP + AWC. This reproduces M&M's headline AWC
-# sensitivity exactly; the drainable response follows from ΔSAT − ΔFC. (Because M&M regressed each
+# We apply Minasny & McBratney's **WP, AWC and SAT** slopes — the three quantities that define the unavailable /
+# available / drainable bands — and *derive* FC = WP + AWC. This reproduces Minasny & McBratney's headline AWC
+# sensitivity exactly; the drainable response follows from ΔSAT − ΔFC. (Because Minasny & McBratney regressed each
 # property independently, ΔAWC ≠ ΔFC − ΔWP; anchoring on ΔFC instead would understate the AWC
 # response by ~25–50 %, especially in fine soils.)
 #
 # **Caveats.** (1) ROSETTA's prediction is a *nominal* baseline at **OC ≈ `OC_BASELINE_PCT`**
-# (≈ 1 %, from UNSODA — Section 1), not OC = 0; the M&M increments are applied relative to it, so
+# (≈ 1 %, from UNSODA — Section 1), not OC = 0; the Minasny & McBratney increments are applied relative to it, so
 # the slider's 0 % end is a truly organic-free mineral soil (drier than ROSETTA), clamped at ≥ 0.
 # (2) The BD and OC sliders
 # are **independent "what-if" axes**; in reality organic matter *lowers* bulk density (the
 # low-BD ↔ high-OC diagonal is the realistic region), and a low-BD + high-OC corner double-counts
 # porosity, so don't read the extreme corners as coupled predictions. (3) The modifier is
-# **linear**, whereas M&M found diminishing returns (largest gains 0→1 % OC), so it may overstate
+# **linear**, whereas Minasny & McBratney found diminishing returns (largest gains 0→1 % OC), so it may overstate
 # gains at high OC; their data span OC < 10 %. (4) OM ≈ OC / 0.58 (van Bemmelen); the line-plot OC
 # axis is capped at 5 % (≈ 8.6 % OM) and the diagram's OM slider spans 0–8 %. (5) In the diagram,
 # texture columns are **greyed** where the blended
@@ -224,9 +224,9 @@ for bd in bulk_densities:
             awc0 = fc0 - wp0
             d_oc = oc - OC_BASELINE_PCT          # increments relative to the mineral-baseline OC
             wp = max(wp0 + s["WP"] / 100 * d_oc, 0.0)
-            awc = max(awc0 + s["AWC"] / 100 * d_oc, 0.0)   # M&M AWC slope; floor at 0
+            awc = max(awc0 + s["AWC"] / 100 * d_oc, 0.0)   # Minasny & McBratney AWC slope; floor at 0
             sat = max(sat0 + s["SAT"] / 100 * d_oc, wp + awc)  # keep SAT >= FC
-            fc = wp + awc                       # derive FC so AWC matches M&M exactly
+            fc = wp + awc                       # derive FC so AWC matches Minasny & McBratney exactly
             blend_rows.append(
                 {
                     "texture_class": cls,
@@ -295,7 +295,7 @@ def blend_line(ycol, ylabel, title, ylim):
 blend_line(
     "available_water_capacity",
     "available water capacity (cm³/cm³)",
-    "ROSETTA + M&M blend: AVAILABLE water vs. organic carbon — {dimensions}",
+    "ROSETTA + Minasny & McBratney blend: AVAILABLE water vs. organic carbon — {dimensions}",
     (0, 0.42),
 )
 
@@ -315,7 +315,7 @@ hv.output(widget_location="bottom")
 blend_line(
     "drainable_water",
     "drainable water  SAT − FC  (cm³/cm³)",
-    "ROSETTA + M&M blend: DRAINABLE water vs. organic carbon — {dimensions}",
+    "ROSETTA + Minasny & McBratney blend: DRAINABLE water vs. organic carbon — {dimensions}",
     (0, 0.60),
 )
 
@@ -327,9 +327,9 @@ blend_line(
 # :::
 
 # %%
-# FAO-style transposed diagram for the ROSETTA + M&M blend, with TWO sliders: mineral bulk
+# FAO-style transposed diagram for the ROSETTA + Minasny & McBratney blend, with TWO sliders: mineral bulk
 # density and organic MATTER (the way the audience thinks about it; OM ≈ OC / 0.58). Computed
-# directly from the ROSETTA baseline + M&M increments so the slider can carry round OM values.
+# directly from the ROSETTA baseline + Minasny & McBratney increments so the slider can carry round OM values.
 # dynamic=False embeds every (BD, OM) frame so it works without a live kernel. (OM capped at
 # 8% on a 1% grid to bound the frame count / latency.)
 import panel as pn
@@ -387,6 +387,10 @@ def _blend_table(bd, om):
 blend_layout = pn.Column(
     pn.panel(pn.bind(_blend_figure, bd_slider, om_slider)),
     pn.Row(bd_slider, om_slider),
+    pn.pane.HTML(
+        "<b>Soil water retention by texture class (porosity volume fraction, cm³/cm³)</b>",
+        styles={"font-size": "1rem", "margin": "8px 0 2px"},
+    ),
     pn.panel(pn.bind(_blend_table, bd_slider, om_slider)),
     width=790,
 )
@@ -401,13 +405,15 @@ blend_layout.embed(max_states=2000, max_opts=40, progress=False)
 # :::
 
 # %% [markdown]
-# ## 3. Organic-matter sensitivity (Saxton–Rawls 2006)
+# ## 3. Organic-matter sensitivity comparison to Saxton & Rawls (2006)
+#
+# The "Soil Water Characteristic Estimates by Texture and Organic Matter for Hydrologic Solutions" publication by [Saxton & Rawls (2006)](https://www.researchgate.net/publication/43257423_Soil_Water_Characteristic_Estimates_by_Texture_and_Organic_Matter_for_Hydrologic_Solutions) is an earlier study that has been commonly used to estimate how changes in soil organic matter affect soil water storage. Here we compare findings from this older study with the newer results from Minasny & McBratney (2018) that we use in section 2 above.
 #
 # ::: {.callout-note collapse="true"}
-# ## For researchers: Saxton–Rawls alternative and validation
+# ## For researchers: Saxton–Rawls comparison 
 #
-# An independent alternative to Section 2's blend: the **Saxton & Rawls (2006)** pedotransfer
-# functions, which take **sand, clay, and organic-matter %** directly and were developed from
+# The **Saxton & Rawls (2006)** pedotransfer
+# functions take **sand, clay, and organic-matter %** directly and were developed from
 # USDA/NRCS data for the continental USA. Self-contained (no ROSETTA baseline) — though (see §3.1)
 # it gives a smaller, and for clays negative, OC effect than Minasny & McBratney.
 #
@@ -522,18 +528,18 @@ sr_profiles.opts(
 # ### 3.1 Validation: ΔAWC/ΔOC vs. Minasny & McBratney (2018)
 #
 # ::: {.callout-note collapse="true"}
-# ## For researchers: Saxton–Rawls vs. M&M AWC sensitivity comparison
+# ## For researchers: Saxton–Rawls vs. Minasny & McBratney AWC sensitivity comparison
 #
 # Do the two PTF families agree on how much available water organic carbon adds? We compute the
 # Saxton–Rawls **ΔAWC per +1 % organic carbon** for each texture class — over the same
-# **OC 0.5 % → 1.5 %** interval M&M used for PTF-derived slopes (OC = 0.58·OM) — then average by
+# **OC 0.5 % → 1.5 %** interval Minasny & McBratney used for PTF-derived slopes (OC = 0.58·OM) — then average by
 # their coarse/medium/fine groups and compare against Table 2.
 #
 # Expect only *order-of-magnitude* agreement: both say the effect is small and decreases from
 # coarse to fine textures, but **Saxton–Rawls is systematically lower** and turns **negative for
-# clays** — a known feature of the Rawls/Saxton–Rawls lineage (M&M note their neural net "did not
+# clays** — a known feature of the Rawls/Saxton–Rawls lineage (Minasny & McBratney note their neural net "did not
 # show a negative effect with an increase in OC for clay content larger than 60 %"). This is why
-# Section 2 builds the blend on the M&M increments rather than Saxton–Rawls.
+# Section 2 builds the blend on the Minasny & McBratney increments rather than Saxton–Rawls.
 # :::
 
 # %%
@@ -542,7 +548,7 @@ MM_AWC_SLOPE = {"general": 1.16, "coarse": 1.94, "medium": 1.79, "fine": 1.41}
 
 
 def sr_awc_slope_per_pct_oc(sand_frac, clay_frac):
-    """Saxton–Rawls ΔAWC over OC 0.5%->1.5% (M&M's interval), in mm H2O 100 mm-1 (= vol%)."""
+    """Saxton–Rawls ΔAWC over OC 0.5%->1.5% (Minasny & McBratney's interval), in mm H2O 100 mm-1 (= vol%)."""
     om_lo, om_hi = 0.5 / VB, 1.5 / VB  # OC% -> OM%
     p_lo, f_lo, _ = saxton_rawls(sand_frac, clay_frac, om_lo)
     p_hi, f_hi, _ = saxton_rawls(sand_frac, clay_frac, om_hi)
