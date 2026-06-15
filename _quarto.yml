@@ -4,6 +4,18 @@ project:
   # Execute each notebook in its OWN directory so relative reads
   # (e.g. rosetta_porosity_by_texture.csv) resolve.
   execute-dir: file
+  # Explicit allowlist of published inputs. The internal superpowers planning docs under
+  # docs/ are intentionally omitted so they don't publish (and so Quarto doesn't try to
+  # EXECUTE the ```{python} fences in the plan). NOTE: Quarto's `!`-negation does NOT reliably
+  # subtract from globs in this version (verified — a `docs/` glob + `!docs/superpowers/`
+  # still pulls superpowers in; pure negation renders nothing), so list each NEW published
+  # page here explicitly rather than globbing `docs/`. Quarto's canonical input for the
+  # jupytext-paired notebooks is the `.py` (not the `.ipynb`).
+  render:
+    - index.qmd
+    - notebooks/1_rosetta_porosity_by_texture.py
+    - notebooks/2_organic_matter_water_holding.py
+    - notebooks/3_rosetta_hydraulic_conductivity.py
 
 website:
   title: "Soil Health & Water Storage"

@@ -16,7 +16,9 @@
 # %% [markdown]
 # # Soil porosity by USDA texture class and bulk density (Rosetta)
 #
-# This notebook uses the **Rosetta** pedotransfer functions ([usda-ars-ussl/rosetta-soil](https://github.com/usda-ars-ussl/rosetta-soil)) to estimate, for **every USDA soil texture class** (using representative *median* sand/silt/clay values) and for **bulk densities from 0.8 to 1.9 g/cm³ in 0.1 steps**:
+# This notebook produces **interactive charts** showing how soil texture, compaction (bulk density), and organic matter change a soil's capacity to store and release water. Charts cover all 12 USDA texture classes across bulk densities from 0.8 to 1.9 g/cm³ — useful for stormwater design, soil-health assessment, and land-management decisions.
+#
+# Using the **Rosetta** pedotransfer functions ([usda-ars-ussl/rosetta-soil](https://github.com/usda-ars-ussl/rosetta-soil)), we estimate for each texture class and bulk density:
 #
 # | Output | Definition |
 # |---|---|
@@ -25,12 +27,16 @@
 # | **Permanent-wilting-point porosity** | Volumetric water content at 1500 kPa (= 15000 cm suction) |
 # | **Saturated hydraulic conductivity** | Ksat (cm/day) — Rosetta's conductivity output |
 #
+# ::: {.callout-note collapse="true"}
+# ## For researchers: van Genuchten–Mualem retention model
+#
 # Rosetta predicts the **van Genuchten** water-retention parameters (θᵣ, θₛ, α, n) from texture + bulk density. We then evaluate the retention curve at the field-capacity and wilting-point suctions.
 #
 # **van Genuchten (1980) retention model:**
 # $$\theta(h) = \theta_r + \frac{\theta_s - \theta_r}{\left[1 + (\alpha\,h)^{n}\right]^{m}}, \qquad m = 1 - \tfrac{1}{n}$$
 #
 # where $h$ is the suction head [cm] and $\alpha$ [1/cm], $n$ [-], $\theta_r$, $\theta_s$ are Rosetta outputs.
+# :::
 #
 # **Environment:** built with [pixi](https://pixi.sh) (`pixi.toml`). Run `pixi install`, then open this notebook with the `soil_modeling` kernel (`pixi run jupyter lab`).
 
@@ -38,27 +44,15 @@
 import numpy as np
 import pandas as pd
 from rosetta import rosetta, SoilData
-from IPython.display import HTML
 
-pd.set_option("display.float_format", lambda v: f"{v:0.3f}")
-
-
-def show(df, height=360):
-    """Display the *full* DataFrame in a fixed-height, scrollable box — renders the same in
-    JupyterLab and in the exported HTML site (`to_html` emits every row and respects the
-    float_format set above)."""
-    return HTML(
-        "<style>.scroll-df thead th{position:sticky;top:0;background:#fff;"
-        "box-shadow:inset 0 -1px 0 #ccc;}</style>"
-        f'<div class="scroll-df" style="max-height:{height}px;overflow:auto;'
-        'border:1px solid #ddd;border-radius:4px;">'
-        f"{df.to_html()}</div>"
-    )
+# Shared helpers (display table, van Genuchten–Mualem functions, extrapolation-aware line plot);
+# importing _helpers also sets the shared pandas float_format. See notebooks/_helpers.py.
+from _helpers import show, vg_theta, mualem_k, line_with_extrapolation, soil_water_texture_band_diagram
 
 # %% [markdown]
 # ## 1. Representative (median) texture values for each USDA class
 #
-# Sand / silt / clay percentages below are the widely used central (representative) values for each of the 12 USDA texture classes. Each triplet sums to 100% and plots inside the correct region of the USDA texture triangle. Adjust these if you prefer a different convention (e.g. the geometric or modified centroids of Levi, 2017, SSSAJ).
+# Each texture class is represented by a single sand/silt/clay triplet — the widely used central (representative) values. Each triplet sums to 100% and falls inside the correct region of the USDA texture triangle. Adjust these if you prefer a different convention (e.g. the geometric or modified centroids of Levi, 2017, SSSAJ).
 
 # %%
 # texture_class: (sand %, silt %, clay %)
@@ -108,10 +102,12 @@ texture_df.insert(1, "hydrologic_soil_group", texture_df["texture_class"].map(HY
 
 # sanity check: each class sums to 100%
 assert (texture_df[["sand_pct", "silt_pct", "clay_pct"]].sum(axis=1) == 100).all()
-show(texture_df)
+display(texture_df)
 
 # %% [markdown]
 # ## 2. Bulk-density range and suction set-points
+#
+# Bulk density (g/cm³) is a direct measure of soil compaction: lower values indicate more pore space; higher values reflect a more compacted, denser soil. Field capacity (33 kPa) and permanent wilting point (1500 kPa) are the standard agronomic thresholds that bound plant-available water.
 
 # %%
 # Bulk density 0.8 -> 1.9 g/cm3 in 0.1 steps (rounded to avoid float drift). Capped at 1.9:
@@ -128,49 +124,24 @@ print(f"{len(bulk_densities)} bulk densities: {bulk_densities}")
 # %% [markdown]
 # ## 3. van Genuchten–Mualem helpers
 #
+# ::: {.callout-note collapse="true"}
+# ## For researchers: van Genuchten–Mualem retention model
+#
 # `vg_theta` gives the retention curve θ(h); `mualem_k` gives the **unsaturated** hydraulic
 # conductivity K(h) from Rosetta's Mualem–van Genuchten parameters (matching-point `K0` and
 # pore-connectivity `L`, columns 5–6 of the Rosetta output). Used for K at field capacity /
 # wilting point (§4) and carried in the CSV for the hydraulic-conductivity notebook (Notebook 3).
-
-# %%
-def vg_theta(h, theta_r, theta_s, alpha, n):
-    """Volumetric water content at suction head h [cm] (van Genuchten, 1980).
-
-    Parameters may be scalars or numpy arrays (broadcast together).
-    alpha [1/cm], n [-], theta_r/theta_s [cm3/cm3]. m = 1 - 1/n.
-    """
-    theta_r = np.asarray(theta_r, dtype=float)
-    theta_s = np.asarray(theta_s, dtype=float)
-    alpha = np.asarray(alpha, dtype=float)
-    n = np.asarray(n, dtype=float)
-    m = 1.0 - 1.0 / n
-    return theta_r + (theta_s - theta_r) / (1.0 + (alpha * h) ** n) ** m
-
-
-def mualem_k(h, alpha, n, k0, L):
-    """Unsaturated hydraulic conductivity K at suction head h [cm], Mualem–van Genuchten
-    (Schaap & Leij, 2000), in the same units as k0 (Rosetta: cm/day):
-
-        Se = [1 + (alpha h)^n]^(-m),  m = 1 - 1/n
-        K(Se) = k0 * Se^L * [1 - (1 - Se^(1/m))^m]^2
-
-    k0 = matching-point conductivity (Rosetta col 5), L = pore-connectivity exponent
-    (col 6, often negative). At h = 0 (Se = 1) this returns k0 — note Rosetta's k0 is the
-    fitted matching point and is typically < Ksat (col 4). Scalars or numpy arrays.
-    """
-    h = np.abs(np.asarray(h, dtype=float))
-    alpha = np.asarray(alpha, dtype=float)
-    n = np.asarray(n, dtype=float)
-    m = 1.0 - 1.0 / n
-    Se = (1.0 + (alpha * h) ** n) ** (-m)
-    return k0 * Se**L * (1.0 - (1.0 - Se ** (1.0 / m)) ** m) ** 2
-
+# Both functions are shared with Notebook 3 and live in **`notebooks/_helpers.py`** (imported above).
+# :::
 
 # %% [markdown]
 # ## 4. Run Rosetta and build the results DataFrame
 #
+# ::: {.callout-note collapse="true"}
+# ## For researchers: how Rosetta is run
+#
 # Rosetta input columns are `[sand%, silt%, clay%, bulk_density]`; model version **3** (2017 recalibration) is used. The mean output columns are `[θᵣ, θₛ, α, n, Ksat, K0, L]` with α in 1/cm and n dimensionless (linear, not log₁₀). We keep **Ksat** (saturated hydraulic conductivity, column 4) as `ksat_cm_day` (cm/day) and `ksat_in_hr` (in/hr = cm/day ÷ 24 ÷ 2.54, the usual stormwater unit). We also retain the **Mualem–van Genuchten** parameters `theta_r, vg_alpha_1cm, vg_n, k0_cm_day, mualem_L` (used by the hydraulic-conductivity notebook, **Notebook 3**) and the unsaturated K at field capacity / wilting point (`k_fc_cm_day`, `k_wp_cm_day`).
+# :::
 
 # %%
 # Build every (texture class) x (bulk density) combination
@@ -274,40 +245,10 @@ print("Wrote rosetta_porosity_by_texture.csv")
 # continues as a faint **grey dashed** tail.
 
 # %%
-import hvplot.pandas  # noqa: F401  (registers the .hvplot accessor)
-import holoviews as hv
-
-plot_opts = dict(
-    x="bulk_density_g_cm3",
-    by="texture_class",
-    xlabel="Bulk density (g/cm³)",
-    width=750,
-    height=500,
-    legend="right",
-    grid=True,
-)
-
-# Each texture's curve is drawn solid over plausible bulk densities and grey-dashed where
-# implausible_bd is True (Rosetta θₛ > BD-implied pore space). The boundary row is kept in
-# both series so the solid and dashed segments join.
-_next_implausible = result.groupby("texture_class", sort=False)["implausible_bd"].shift(-1).fillna(False)
-_extrap_mask = result["implausible_bd"] | _next_implausible
-
-
-def line_with_extrapolation(ycol, ylabel, title, **extra):
-    solid = result.assign(**{ycol: result[ycol].where(~result["implausible_bd"])}).hvplot.line(
-        y=ycol, ylabel=ylabel, title=title, **plot_opts, **extra
-    )
-    dashed = (
-        result.assign(**{ycol: result[ycol].where(_extrap_mask)})
-        .hvplot.line(y=ycol, **plot_opts, **extra)
-        .opts(hv.opts.Curve(color="lightgray", line_dash="dashed", alpha=0.9))
-        .opts(show_legend=False)
-    )
-    return solid * dashed
-
-
+# line_with_extrapolation (shared with Notebook 3) is imported from _helpers: each texture's
+# curve is solid over plausible bulk densities and grey-dashed where implausible_bd is True.
 line_with_extrapolation(
+    result,
     "total_porosity",
     "Total porosity θₛ (cm³/cm³)",
     "Rosetta total porosity vs. bulk density by USDA texture class",
@@ -315,6 +256,7 @@ line_with_extrapolation(
 
 # %%
 line_with_extrapolation(
+    result,
     "field_capacity_porosity",
     "Field-capacity porosity at 33 kPa (cm³/cm³)",
     "Rosetta field-capacity porosity vs. bulk density by USDA texture class",
@@ -322,10 +264,16 @@ line_with_extrapolation(
 
 # %%
 line_with_extrapolation(
+    result,
     "wilting_point_porosity",
     "Wilting-point porosity at 1500 kPa (cm³/cm³)",
     "Rosetta wilting-point porosity vs. bulk density by USDA texture class",
 )
+
+# %% [markdown]
+# ::: {.callout-tip appearance="simple"}
+# **Takeaway:** As bulk density increases — reflecting more compacted soil — total porosity, field capacity, and available water all decline across every texture class, so compaction directly reduces the water a soil can hold and release to plants and infiltration.
+# :::
 
 # %% [markdown]
 # ## 7. Soil water partitioning by texture
@@ -420,6 +368,11 @@ marks_hmap = hv.HoloMap({bd: _implausible_marks(bd) for bd in bulk_densities}, k
 )
 
 # %% [markdown]
+# ::: {.callout-tip appearance="simple"}
+# **Takeaway:** Clays hold a lot of total water but lock much of it below the wilting point (a wide unavailable band), while **silt and silt loam** offer the most plant-available water — the green band — making these silty, medium textures the most productive for crops and vegetation. Sands sit at the low end.
+# :::
+
+# %% [markdown]
 # ## 8. Soil water vs. texture (transposed line view)
 #
 # The same three water states as Section 7, transposed and drawn as a line/area diagram in the style of the classic FAO available-water figure: **texture on the x-axis** (coarse → fine), **water volume on the y-axis** expressed as **inches of water per foot of soil depth** (volumetric water content × 12), with the *permanent wilting point*, *field capacity*, and *total porosity* curves bounding the filled bands:
@@ -458,30 +411,11 @@ def _water_profile(bd):
     pwp = d["wilting_point_porosity"].to_numpy() * INCHES_PER_FOOT
     fc = d["field_capacity_porosity"].to_numpy() * INCHES_PER_FOOT
     por = d["total_porosity"].to_numpy() * INCHES_PER_FOOT
-
-    bands = (
-        hv.Area((x, pwp, pwp * 0), vdims=["y", "y2"]).opts(color="orange", alpha=0.45, line_alpha=0)
-        * hv.Area((x, fc, pwp), vdims=["y", "y2"]).opts(color="green", alpha=0.45, line_alpha=0)
-        * hv.Area((x, por, fc), vdims=["y", "y2"]).opts(color="blue", alpha=0.40, line_alpha=0)
+    return soil_water_texture_band_diagram(
+        x, pwp, fc, por,
+        texture_labels=d["texture_class"].astype(str).tolist(),
+        implausible=d["implausible_bd"].to_numpy(),
     )
-    lines = (
-        hv.Curve((x, pwp), label="Permanent wilting point").opts(color="black", line_width=2)
-        * hv.Curve((x, fc), label="Field capacity").opts(color="black", line_width=2)
-        * hv.Curve((x, por), label="Total porosity").opts(color="gray", line_width=1.5, line_dash="dashed")
-    )
-    labels = (
-        hv.Text(8, pwp[8] * 0.5, "Unavailable\nwater").opts(text_color="saddlebrown", text_font_size="9pt")
-        * hv.Text(5, (pwp[5] + fc[5]) / 2, "Available water").opts(text_color="darkgreen", text_font_size="10pt")
-        * hv.Text(2.2, (fc[2] + por[2]) / 2, "Drainable\nwater").opts(text_color="navy", text_font_size="10pt")
-    )
-    overlay = bands
-    # grey out columns where this BD is physically implausible for the texture (extrapolation)
-    flagged = x[d["implausible_bd"].to_numpy()]
-    if len(flagged):
-        overlay = overlay * hv.Overlay(
-            [hv.VSpan(xi - 0.5, xi + 0.5).opts(color="gray", alpha=0.2) for xi in flagged]
-        )
-    return overlay * lines * labels
 
 
 profiles = hv.HoloMap(
@@ -495,9 +429,14 @@ profiles.opts(
         height=520,
         legend_position="top_left",
         xlabel="texture class (hydrologic soil group); coarse → fine",
-        ylabel="Water volume (inches per foot of soil depth)",
+        ylabel="Water Storage Capacity (inches per foot of soil depth)",
         title="Soil water vs. texture (Rosetta) — {dimensions}",
     ),
     hv.opts.Curve(xticks=texture_ticks, xrotation=45, ylim=(0, 0.7 * INCHES_PER_FOOT)),
     hv.opts.Area(xticks=texture_ticks, xrotation=45, ylim=(0, 0.7 * INCHES_PER_FOOT)),
 )
+
+# %% [markdown]
+# ::: {.callout-tip appearance="simple"}
+# **Takeaway:** Silt and silt loam soils store the most plant-available water (roughly 2–2.5 inches per foot of depth at moderate bulk density), while sandy soils drain quickly and clay soils lock much of their water below the wilting point — a pattern that shifts as you move the bulk-density slider toward more compacted values.
+# :::

@@ -7,8 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A small scientific-computing project: three Jupyter notebooks that turn the **Rosetta v3**
 pedotransfer functions into interactive soil water-storage / hydraulic-conductivity charts for a
 stormwater & soil-health audience, published as a static interactive website on GitHub Pages.
-There is no application code or test suite — the "product" is the executed notebooks and the site
-built from them.
+The only non-notebook code is **`notebooks/_helpers.py`**, a small module of functions shared by the
+notebooks (see Architecture); there is no test suite — the "product" is the executed notebooks and
+the site built from them.
 
 ## Environment & commands
 
@@ -54,6 +55,29 @@ If you change Notebook 1's outputs, re-run Notebook 1 (to rewrite the CSV) **the
 then `pixi run render` to refresh `_freeze/`. The CSV is committed (so notebooks 2/3 open standalone),
 and the site builds from the committed `_freeze/` cache — see the website-build section.
 
+### Shared code: `notebooks/_helpers.py`
+
+Functions used by more than one notebook live in **`notebooks/_helpers.py`**, imported as
+`from _helpers import ...` (notebooks execute with cwd = `notebooks/` via `execute-dir: file`, so the
+sibling module resolves; `index.qmd` runs at the repo root and does `sys.path.insert(0, "notebooks")`).
+It exports `show` (the scrollable-table display helper, used by all three),
+`vg_theta` + `mualem_k` (van Genuchten–Mualem retention/conductivity, NB1 & NB3),
+`line_with_extrapolation(result, ycol, ylabel, title, ...)` (the solid/grey-dashed BD line plot, NB1
+& NB3 — takes `result` first and computes the extrapolation mask internally), and the
+**organic-matter blend trio** shared by the home page (`index.qmd`) and NB2 §2:
+`soil_water_bd_om_blend_table(result, bd, om)` (ROSETTA + Minasny–McBratney per-texture WP/FC/SAT/
+available/drainable for one BD×OM state), `soil_water_texture_band_diagram(x, pwp, fc, por, ...)`
+(the FAO band diagram with category hover — Texture/Available/Drainable/Total stormwater capacity),
+and `soil_water_table_html(df)` (the styled HTML storage table used inside a Panel `pn.pane.HTML`).
+Importing the module also sets the shared pandas `display.float_format` (3 decimals) that `show`
+relies on **and** a global wheel-zoom-off default (`hv.opts.defaults(... active_tools=[])`) so scroll
+doesn't zoom until the user toggles it.
+
+`_helpers.py` is a **plain module, not a jupytext-paired notebook** (no `.ipynb`, no `# %%` cells), and
+the leading underscore keeps Quarto from rendering it as a page. **Editing it affects all three
+notebooks**, so re-run `pixi run render` (which re-executes them) after changing it. Single-notebook
+functions (`saxton_rawls`, `blend_line` in NB2; `bd_slider_line` in NB3) stay in their notebook.
+
 ## Critical, non-obvious constraints
 
 **Interactive sliders need their widget states *baked in* to work without a kernel.** Plots use
@@ -84,6 +108,17 @@ flag/treatment when adding plots.
 - Built with **Quarto** (`_quarto.yml`, `index.qmd`), code folded by default. `pixi run render`
   → `_site/`. Config: `execute: { enabled: true, freeze: auto }` and `execute-dir: file`.
 - **`execute-dir: file`** runs each notebook in `notebooks/` so its relative CSV read resolves.
+- **`render:` allowlist (non-obvious).** `_quarto.yml` has an explicit `project.render` list —
+  `index.qmd` plus the three notebook **`.py`** files (Quarto's canonical input for jupytext pairs,
+  *not* the `.ipynb`). This keeps the internal `docs/` planning folder out of the published site.
+  **Adding a new notebook/page means adding it to that list**, or it won't render. (Without the
+  allowlist, Quarto auto-renders every `.md`/`.qmd`/`.py` — including `docs/`, where a `{python}`
+  fence would even try to execute.)
+- **The home page (`index.qmd`) is an *executed* document.** It runs at the repo root, reads
+  `notebooks/rosetta_porosity_by_texture.csv`, imports `_helpers`, and renders the headline
+  figure + slider-linked storage table as a **Panel** layout with `embed=True` (`max_opts` ≥ the
+  options-per-slider so all BD×OM states bake in). NB2 §2 uses the same Panel layout. `#| echo:
+  false` hides the code on the landing page.
 - **Freeze workflow:** `pixi run render` executes notebooks locally and writes `_freeze/`, which
   **is committed**. CI runs `pixi run render`: if the committed cache matches, it renders without
   executing (~15 s). **Caveat: the freeze does not reliably "hit" across macOS→Linux** (and any

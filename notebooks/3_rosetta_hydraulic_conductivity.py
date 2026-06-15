@@ -16,38 +16,34 @@
 # %% [markdown]
 # # Rosetta hydraulic conductivity & infiltration
 #
-# Companion to **`1_rosetta_porosity_by_texture.ipynb`** — reads `rosetta_porosity_by_texture.csv`
-# (**run Notebook 1 first**), which carries Rosetta's saturated **Ksat** and the **Mualem–van
-# Genuchten** unsaturated-conductivity parameters (`k0_cm_day`, `mualem_L`, `vg_alpha_1cm`, `vg_n`).
+# This notebook shows **how fast water moves through soil and how compaction slows it** — two
+# questions central to stormwater management and soil health. Three interactive charts let you
+# explore by texture class and bulk density:
 #
-# - **§1 Saturated hydraulic conductivity (Ksat)** vs. bulk density.
-# - **§2 Unsaturated hydraulic conductivity K(h)** from the Mualem–van Genuchten parameters.
-# - **§3 Green–Ampt infiltration** f(t) / F(t).
+# - **§1 Saturated hydraulic conductivity (Ksat)** — how fast a wet soil transmits water.
+# - **§2 Unsaturated hydraulic conductivity K(h)** — how conductivity collapses as a soil dries.
+# - **§3 Green–Ampt infiltration** f(t) / F(t) — how quickly a surface absorbs ponded water over time.
 #
-# Stormwater units (in/hr); bulk-density sliders; physically implausible BD × texture combinations
-# (`implausible_bd`, θₛ > 1 − BD/2.65) are greyed as extrapolation, as in Notebook 1.
+# All charts use stormwater units (in/hr) with bulk-density sliders. Physically implausible
+# BD × texture combinations (`implausible_bd`, θₛ > 1 − BD/2.65) are greyed as extrapolation,
+# as in Notebook 1.
+#
+# ::: {.callout-note collapse="true"}
+# ## For researchers: data source
+# Charts read `rosetta_porosity_by_texture.csv` (run Notebook 1 first), which carries Rosetta's
+# saturated **Ksat** and the **Mualem–van Genuchten** unsaturated-conductivity parameters
+# (`k0_cm_day`, `mualem_L`, `vg_alpha_1cm`, `vg_n`).
+# :::
 
 # %%
 import numpy as np
 import pandas as pd
 import hvplot.pandas  # noqa: F401  (registers the .hvplot accessor)
 import holoviews as hv
-from IPython.display import HTML
 
-pd.set_option("display.float_format", lambda v: f"{v:0.3f}")
-
-
-def show(df, height=360):
-    """Display the *full* DataFrame in a fixed-height, scrollable box — renders the same in
-    JupyterLab and in the exported HTML site (`to_html` emits every row and respects the
-    float_format set above)."""
-    return HTML(
-        "<style>.scroll-df thead th{position:sticky;top:0;background:#fff;"
-        "box-shadow:inset 0 -1px 0 #ccc;}</style>"
-        f'<div class="scroll-df" style="max-height:{height}px;overflow:auto;'
-        'border:1px solid #ddd;border-radius:4px;">'
-        f"{df.to_html()}</div>"
-    )
+# Shared helpers (display table, Mualem K(h), extrapolation-aware line plot); importing _helpers
+# also sets the shared pandas float_format. See notebooks/_helpers.py.
+from _helpers import show, mualem_k, line_with_extrapolation
 
 # Rosetta baseline + Mualem–van Genuchten parameters from Notebook 1
 result = pd.read_csv("rosetta_porosity_by_texture.csv")
@@ -62,47 +58,8 @@ texture_x = {cls: i for i, cls in enumerate(TEXTURE_CLASSES)}
 texture_ticks = [(i, f"{cls} ({HYDROLOGIC_SOIL_GROUP[cls]})") for cls, i in texture_x.items()]
 
 
-def mualem_k(h, alpha, n, k0, L):
-    """Unsaturated hydraulic conductivity K at suction head h [cm], Mualem–van Genuchten
-    (Schaap & Leij, 2000), in the same units as k0 (Rosetta: cm/day):
-
-        Se = [1 + (alpha h)^n]^(-m),  m = 1 - 1/n
-        K(Se) = k0 * Se^L * [1 - (1 - Se^(1/m))^m]^2
-
-    Use Rosetta's matching-point k0 (col 5) and exponent L (col 6, often negative) — not Ksat.
-    """
-    h = np.abs(np.asarray(h, dtype=float))
-    alpha = np.asarray(alpha, dtype=float)
-    n = np.asarray(n, dtype=float)
-    m = 1.0 - 1.0 / n
-    Se = (1.0 + (alpha * h) ** n) ** (-m)
-    return k0 * Se**L * (1.0 - (1.0 - Se ** (1.0 / m)) ** m) ** 2
-
-
-# --- plotting helpers (mirrors Notebook 1) ---
-plot_opts = dict(
-    x="bulk_density_g_cm3", by="texture_class", xlabel="Bulk density (g/cm³)",
-    width=750, height=500, legend="right", grid=True,
-)
-# boundary row kept in both series so solid and grey-dashed (extrapolation) segments join
-_next_implausible = result.groupby("texture_class", sort=False)["implausible_bd"].shift(-1).fillna(False)
-_extrap_mask = result["implausible_bd"] | _next_implausible
-
-
-def line_with_extrapolation(ycol, ylabel, title, **extra):
-    """x = bulk density; solid over plausible BD, grey-dashed where implausible_bd."""
-    solid = result.assign(**{ycol: result[ycol].where(~result["implausible_bd"])}).hvplot.line(
-        y=ycol, ylabel=ylabel, title=title, **plot_opts, **extra
-    )
-    dashed = (
-        result.assign(**{ycol: result[ycol].where(_extrap_mask)})
-        .hvplot.line(y=ycol, **plot_opts, **extra)
-        .opts(hv.opts.Curve(color="lightgray", line_dash="dashed", alpha=0.9))
-        .opts(show_legend=False)
-    )
-    return solid * dashed
-
-
+# mualem_k and line_with_extrapolation are shared with Notebook 1 and imported from _helpers.
+# bd_slider_line (the slider-driven K(h) / Green–Ampt line plots) is specific to this notebook.
 def bd_slider_line(dfL, x, y, xlabel, ylabel, title, **kw):
     """Line plot (one per texture) with a bulk-density slider; rows flagged implausible_bd are
     drawn grey-dashed. Returns a HoloMap keyed by bulk_density_g_cm3 (caller overlays/redims)."""
@@ -136,6 +93,7 @@ show(result)
 
 # %%
 line_with_extrapolation(
+    result,
     "ksat_in_hr",
     "Saturated hydraulic conductivity Ksat (in/hr, log scale)",
     "Rosetta saturated hydraulic conductivity vs. bulk density by USDA texture class",
@@ -143,15 +101,27 @@ line_with_extrapolation(
 )
 
 # %% [markdown]
+# ::: {.callout-tip appearance="simple"}
+# **Takeaway:** Sandy soils transmit water orders of magnitude faster than clays, and increasing bulk density (compaction) reduces Ksat sharply across all texture classes — a healthy, loose soil infiltrates far more water than a compacted one of the same texture.
+# :::
+
+# %% [markdown]
 # ## 2. Unsaturated hydraulic conductivity K(h)
 #
+# As soil dries out, its ability to conduct water drops by many orders of magnitude. The
+# log–log chart below shows how K falls with increasing suction for each texture class — use the
+# bulk-density slider to see how compaction shifts every curve downward. Dotted verticals mark
+# field capacity (FC, 330 cm suction) and wilting point (WP, 15 000 cm suction).
+#
+# ::: {.callout-note collapse="true"}
+# ## For researchers: Mualem–van Genuchten K(h)
 # Rosetta gives the full **Mualem–van Genuchten** parameter set, so conductivity is defined not
 # just at saturation but at every suction: K(h) = K0·Se(h)^L·[1 − (1 − Se^(1/m))^m]² with
-# Se(h) = [1 + (αh)^n]^(−m) (see `mualem_k`). This is what governs **unsaturated** flow — as a soil
-# dries, K drops by many orders of magnitude. Curves use Rosetta's **K0** (matching point) and **L**
-# (columns 5–6), *not* Ksat. Dotted verticals mark field capacity (33 kPa = 330 cm) and wilting
-# point (1500 kPa = 15000 cm); `k_fc_cm_day` / `k_wp_cm_day` in the table are K there. Log–log axes;
-# bulk-density slider; implausible (`implausible_bd`) BD × texture combinations are grey-dashed.
+# Se(h) = [1 + (αh)^n]^(−m) (see `mualem_k`). Curves use Rosetta's **K0** (matching point) and **L**
+# (columns 5–6), *not* Ksat. `k_fc_cm_day` / `k_wp_cm_day` in the table are K at those tensions.
+# Log–log axes; bulk-density slider; implausible (`implausible_bd`) BD × texture combinations
+# are grey-dashed.
+# :::
 
 # %%
 hv.output(widget_location="bottom")
@@ -183,10 +153,22 @@ _kh_markers = (
 ).redim(bulk_density_g_cm3=hv.Dimension("Bulk density, g/cm³ (higher is more compacted)", default=1.4, value_format=lambda v: f"{v:.1f}"))
 
 # %% [markdown]
+# ::: {.callout-tip appearance="simple"}
+# **Takeaway:** Between field capacity and wilting point — the range where plants can extract water — conductivity is already thousands of times lower than at saturation; compaction compresses this window further, making it harder for both water and roots to move through the soil profile.
+# :::
+
+# %% [markdown]
 # ## 3. Green–Ampt infiltration
 #
-# Infiltration is a *process*, not just a conductivity. The **Green–Ampt** model gives the
-# infiltration rate f and cumulative depth F for ponded / intense-rain conditions:
+# Infiltration starts fast — especially in dry, coarse, or healthy soils — and slows toward a
+# steady rate as the wetting front advances. The two charts below show the infiltration rate f(t)
+# and cumulative depth F(t) over the first two hours of ponded conditions. Use the bulk-density
+# slider to see how compaction cuts both curves dramatically, increasing runoff risk.
+#
+# ::: {.callout-note collapse="true"}
+# ## For researchers: Green–Ampt parameterization
+# The **Green–Ampt** model gives the infiltration rate f and cumulative depth F for ponded /
+# intense-rain conditions:
 #
 # $$f = K_s\left(1 + \frac{\psi_f\,\Delta\theta}{F}\right), \qquad t = \frac{1}{K_s}\left[F - \psi_f\Delta\theta\,\ln\!\left(1 + \frac{F}{\psi_f\Delta\theta}\right)\right]$$
 #
@@ -195,10 +177,10 @@ _kh_markers = (
 # **ψ_f** is taken from the **Rawls, Brakensiek & Miller (1983)** texture table (cm) — deriving ψ_f
 # from Rosetta's Mualem K(h) integral proved unreliable (Rosetta's fitted L mis-orders the
 # capillary drive, putting sand above clay), so the published textural values are more robust.
-# The rate starts high and decays toward Ksat as the wetting front advances.
 #
 # Caveats: matrix-only (real infiltration is often higher via macropores/structure); Ksat is
 # Rosetta's least-certain output; high-BD × texture extrapolations are grey-dashed.
+# :::
 
 # %%
 hv.output(widget_location="bottom")
@@ -244,3 +226,8 @@ bd_slider_line(
     "Green–Ampt cumulative infiltration vs. time — {dimensions}",
     ylim=(0, 25),
 ).redim(bulk_density_g_cm3=hv.Dimension("Bulk density, g/cm³ (higher is more compacted)", default=1.4, value_format=lambda v: f"{v:.1f}"))
+
+# %% [markdown]
+# ::: {.callout-tip appearance="simple"}
+# **Takeaway:** Infiltration starts fast and settles toward the saturated rate — but compaction lowers the ceiling, so a compacted soil ponds and runs off far sooner than a healthy one of the same texture, even under the same rainfall intensity.
+# :::
