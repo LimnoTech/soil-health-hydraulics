@@ -4,8 +4,10 @@ Imported as ``from _helpers import ...``. The notebooks execute with their worki
 to ``notebooks/`` (Quarto ``execute-dir: file``), so this sibling module is importable. The leading
 underscore also keeps Quarto from treating it as a page to render.
 
-Importing this module sets the pandas ``display.float_format`` that all three notebooks share
-(3 decimals) — the same setting ``show`` relies on for its HTML table rendering.
+Importing this module has three global side-effects all three notebooks rely on: it sets the
+pandas ``display.float_format`` (3 decimals, used by ``show``), registers the HoloViews **Bokeh**
+backend, and sets a wheel-zoom-off ``hv.opts.defaults(... active_tools=[])`` so scroll doesn't
+zoom a figure until the user toggles it.
 """
 
 import numpy as np

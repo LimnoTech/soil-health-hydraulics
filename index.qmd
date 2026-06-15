@@ -5,7 +5,7 @@ toc: false
 
 How do **soil texture**, **bulk density** (compaction), and **organic matter** control how
 much water a soil can store and how fast water moves through it? Increasing soil organic
-and decompacting disturbed soils are two proven practices to restoring soil health.
+matter and decompacting disturbed soils are two proven practices for restoring soil health.
 
 These pages turn the USDA [**ROSETTA3**](https://github.com/usda-ars-ussl/rosetta-soil)
 pedotransfer functions into **interactive charts** you can explore right in your browser.
@@ -27,7 +27,7 @@ page. Grey, dashed regions flag physically implausible texture × bulk-density c
 
 Drag the two sliders — **bulk density** (compaction) and **organic matter** — and watch the
 soil-water bands respond. Easing compaction and adding organic matter increase both 
-**plant-available** and **drainable** water storage capacity. The tabl below the chart also responds
+**plant-available** and **drainable** water storage capacity. The table below the chart also responds
 to the sliders, providing porosity volume fractions.
 
 ```{python}
@@ -113,7 +113,11 @@ layout = pn.Column(
 )
 
 # Bake every (bulk density, organic matter) state into static HTML so the sliders work with no
-# kernel (max_opts must exceed the number of options per slider: 12 BD x 9 OM = 108 states).
+# kernel (12 BD x 9 OM = 108 states). embed() SILENTLY truncates if its limits are exceeded —
+# leaving dead/stale frames in the static page — so assert the bounds (max_opts must exceed the
+# options per slider; max_states must exceed their product) to fail loudly if the grids grow.
+assert len(bulk_densities) <= 40 and len(om_grid) <= 40, "max_opts=40 too low for slider options"
+assert len(bulk_densities) * len(om_grid) <= 2000, "max_states=2000 too low for BD×OM combos"
 layout.embed(max_states=2000, max_opts=40, progress=False)
 ```
 
@@ -124,7 +128,7 @@ Figure axis is in **inches per foot of soil depth**; the table lists the same qu
 
 ## The notebooks
 
-The science behind our results is developed Jupypter Notebooks, available in the 
+The science behind our results is developed in Jupyter Notebooks, available in the
 [soil-health-hydraulics](https://github.com/LimnoTech/soil-health-hydraulics) GitHub 
 repository and viewable here.
 

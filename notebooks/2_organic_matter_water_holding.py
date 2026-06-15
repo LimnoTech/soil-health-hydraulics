@@ -395,6 +395,11 @@ blend_layout = pn.Column(
     width=790,
 )
 
+# embed() bakes every (BD, OM) state into static HTML so the sliders work with no kernel, but it
+# SILENTLY truncates if its limits are exceeded (→ dead/stale frames). Assert the bounds so a
+# future finer grid fails loudly here instead (max_opts > options per slider; max_states > product).
+assert len(bulk_densities) <= 40 and len(om_grid) <= 40, "max_opts=40 too low for slider options"
+assert len(bulk_densities) * len(om_grid) <= 2000, "max_states=2000 too low for BD×OM combos"
 blend_layout.embed(max_states=2000, max_opts=40, progress=False)
 
 # %% [markdown]
