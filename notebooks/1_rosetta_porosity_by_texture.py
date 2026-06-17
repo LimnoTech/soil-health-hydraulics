@@ -16,26 +16,26 @@
 # %% [markdown]
 # # Soil porosity by USDA texture class and bulk density (Rosetta)
 #
-# This notebook produces **interactive charts** showing how soil texture, compaction (bulk density), and organic matter change a soil's capacity to store and release water. Charts cover all 12 USDA texture classes across bulk densities from 0.8 to 1.9 g/cm³ — useful for stormwater design, soil-health assessment, and land-management decisions.
+# This notebook produces **interactive charts** showing how soil texture, compaction (bulk density), and organic matter change a soil's capacity to store and transmit water. Charts cover all 12 USDA texture classes and bulk densities from 0.8 to 1.9 g/cm³. The visualizations may inform stormwater design, soil-health assessment, and land-management decisions.
 #
-# Using the **Rosetta** pedotransfer functions ([usda-ars-ussl/rosetta-soil](https://github.com/usda-ars-ussl/rosetta-soil)), we estimate for each texture class and bulk density:
+# Using the **Rosetta** pedotransfer functions ([usda-ars-ussl/rosetta-soil](https://github.com/usda-ars-ussl/rosetta-soil)), we estimate the soil water status for each texture class and bulk density:
 #
 # | Output | Definition |
 # |---|---|
-# | **Total porosity** | Saturated volumetric water content θₛ (van Genuchten) |
-# | **Field-capacity porosity** | Volumetric water content at 33 kPa (= 330 cm suction) |
-# | **Permanent-wilting-point porosity** | Volumetric water content at 1500 kPa (= 15000 cm suction) |
-# | **Saturated hydraulic conductivity** | Ksat (cm/day) — Rosetta's conductivity output |
+# | **Saturation** | Saturated volumetric water content θₛ (van Genuchten), if all pores were able to fill with water |
+# | **Field-capacity** | Volumetric water content at 33 kPa (= 330 cm suction) |
+# | **Permanent-wilting-point** | Volumetric water content at 1500 kPa (= 15000 cm suction) |
+# | **Saturated hydraulic conductivity** | Ksat (cm/day) |
 #
 # ::: {.callout-note collapse="true"}
 # ## For researchers: van Genuchten–Mualem retention model
 #
-# Rosetta predicts the **van Genuchten** water-retention parameters (θᵣ, θₛ, α, n) from texture + bulk density. We then evaluate the retention curve at the field-capacity and wilting-point suctions.
+# Rosetta predicts the **van Genuchten** water-retention parameters (θᵣ, θₛ, α, n) from texture and bulk density. We then evaluate the retention curve at field-capacity and wilting-point.
 #
 # **van Genuchten (1980) retention model:**
 # $$\theta(h) = \theta_r + \frac{\theta_s - \theta_r}{\left[1 + (\alpha\,h)^{n}\right]^{m}}, \qquad m = 1 - \tfrac{1}{n}$$
 #
-# where $h$ is the suction head [cm] and $\alpha$ [1/cm], $n$ [-], $\theta_r$, $\theta_s$ are Rosetta outputs.
+# where $h$ is the matric potential (suction head) [cm] and $\alpha$ [1/cm] is related to air entry, $n$ [-] is a pore-size distribution parameter, $\theta_r$, $\theta_s$ are residual and saturated volumetric water content.
 # :::
 #
 # **Environment:** built with [pixi](https://pixi.sh) (`pixi.toml`). Run `pixi install`, then open this notebook with the `soil_modeling` kernel (`pixi run jupyter lab`).
