@@ -258,7 +258,7 @@ line_with_extrapolation(
 line_with_extrapolation(
     result,
     "field_capacity_porosity",
-    "Field-capacity porosity at 33 kPa (cm³/cm³)",
+    "Field-capacity at 33 kPa (cm³/cm³)",
     "Rosetta field-capacity vs. bulk density by USDA texture class",
 )
 
