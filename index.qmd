@@ -8,7 +8,7 @@ much water a soil can store and transmit? Increasing soil organic
 matter and decompacting disturbed soils are two proven outcomes in soil restoration and both benefit soil hydrology.
 
 These pages turn the USDA [**ROSETTA3**](https://github.com/usda-ars-ussl/rosetta-soil)
-pedotransfer functions into **interactive charts** you can explore right in your browser.
+pedotransfer functions into **interactive charts** you can explore in your browser.
 They also blend in findings from
 [Minasny & McBratney (2018)](https://bsssjournals.onlinelibrary.wiley.com/doi/abs/10.1111/ejss.12475)
 on how much soil organic matter affects water storage. Drag the sliders to change
@@ -18,17 +18,16 @@ respond.
 ::: {.callout-tip}
 ## How to explore
 Every chart is live: **drag the sliders** (bulk density, organic matter) and **hover** for
-exact values; use the toolbar to **zoom and pan**. No install required — it all runs in the
-page. Grey, dashed regions flag physically implausible texture × bulk-density combinations
-(extrapolation beyond Rosetta's training range).
+exact values; use the toolbar to **zoom and pan**. Grey, dashed regions flag texture and bulk-density values
+outside of the models calibration.
 :::
 
 ## Soil health at a glance: how compaction & organic matter change water storage
 
 Drag the two sliders — **bulk density** (compaction) and **organic matter** — and watch the
-soil-water bands respond. Easing compaction and adding organic matter increase both 
+soil-water graph respond. Easing compaction and adding organic matter increase both 
 **plant-available** and **drainable** water storage capacity. The table below the chart also responds
-to the sliders, providing porosity volume fractions.
+to the sliders, providing soil water retention values.
 
 ```{python}
 #| echo: false
