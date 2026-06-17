@@ -4,8 +4,8 @@ toc: false
 ---
 
 How do **soil texture**, **bulk density** (compaction), and **organic matter** control how
-much water a soil can store and how fast water moves through it? Increasing soil organic
-matter and decompacting disturbed soils are two proven practices for restoring soil health.
+much water a soil can store and transmit? Increasing soil organic
+matter and decompacting disturbed soils are two proven outcomes in soil restoration and both benefit soil hydrology.
 
 These pages turn the USDA [**ROSETTA3**](https://github.com/usda-ars-ussl/rosetta-soil)
 pedotransfer functions into **interactive charts** you can explore right in your browser.
