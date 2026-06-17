@@ -259,20 +259,20 @@ line_with_extrapolation(
     result,
     "field_capacity_porosity",
     "Field-capacity porosity at 33 kPa (cm³/cm³)",
-    "Rosetta field-capacity porosity vs. bulk density by USDA texture class",
+    "Rosetta field-capacity vs. bulk density by USDA texture class",
 )
 
 # %%
 line_with_extrapolation(
     result,
     "wilting_point_porosity",
-    "Wilting-point porosity at 1500 kPa (cm³/cm³)",
-    "Rosetta wilting-point porosity vs. bulk density by USDA texture class",
+    "Wilting-point at 1500 kPa (cm³/cm³)",
+    "Rosetta wilting-point vs. bulk density by USDA texture class",
 )
 
 # %% [markdown]
 # ::: {.callout-tip appearance="simple"}
-# **Takeaway:** As bulk density increases — reflecting more compacted soil — total porosity, field capacity, and available water all decline across every texture class, so compaction directly reduces the water a soil can hold and release to plants and infiltration.
+# **Takeaway:** As bulk density increases total porosity, field capacity, and available water all decline across every texture class, so compaction directly reduces the water a soil can hold and release to plants and infiltration.
 # :::
 
 # %% [markdown]
