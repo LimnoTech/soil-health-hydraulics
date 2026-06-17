@@ -127,7 +127,7 @@ Figure axis is in **inches per foot of soil depth**; the table lists the same qu
 
 ## The notebooks
 
-The science behind our results is developed in Jupyter Notebooks, available in the
+Three visualizations were developed from published models, including ROSETTA3 from Zhang & Schaap (2017) to estimate saturated hydraulic conductivity in soil; Minasny & McBratney (2018), a study of empirical soil water holding capacity vs organic matter content in soil; and Saxton & Rawls (2006), who developed soil water relationships for texture and organic matter. These visualizations were developed in Jupyter Notebooks, available in the
 [soil-health-hydraulics](https://github.com/LimnoTech/soil-health-hydraulics) GitHub 
 repository and viewable here.
 
@@ -136,21 +136,20 @@ repository and viewable here.
 ::: {.g-col-12 .g-col-md-4}
 ### [1 · Porosity by texture & bulk density](notebooks/1_rosetta_porosity_by_texture.html)
 Total porosity, **field capacity**, and **wilting point** for every USDA texture class across
-bulk densities 0.8–1.9 g/cm³ — with plant-available and drainable water in inches per foot of
+bulk densities 0.8–1.9 g/cm³. Includes plant-available and drainable water in inches per foot of
 soil, plus an FAO-style storage diagram. The foundation for the other two notebooks.
 :::
 
 ::: {.g-col-12 .g-col-md-4}
 ### [2 · Organic-matter effects](notebooks/2_organic_matter_water_holding.html)
-How adding **organic matter** (0–8%, up to 15%) shifts available and drainable water, via two
-independent methods — Rosetta + Minasny & McBratney (2018), and Saxton–Rawls (2006) — with a
-mineral-baseline calibration from the UNSODA database.
+How adding **organic matter** (0–8%, up to 15%) shifts available and drainable water, via empirical methods: Rosetta3 (Zhang & Schaap, 2017), Minasny & McBratney (2018), and Saxton & Rawls (2006), with a
+texture-based porosity calibration from the UNSODA empirical database (Nemes, et al., 2001).
 :::
 
 ::: {.g-col-12 .g-col-md-4}
 ### [3 · Conductivity & infiltration](notebooks/3_rosetta_hydraulic_conductivity.html)
-Saturated **Ksat**, unsaturated **K(h)** from the Mualem–van Genuchten curve, and **Green–Ampt
-infiltration** rates — all in stormwater units (in/hr), with bulk-density sliders.
+Saturated hydraulic conductivity, **Ksat**, unsaturated hydraulic conductivity, **K(h)** from the Mualem–van Genuchten curve, and **Green–Ampt
+infiltration** rates, in units of inches per hour (in/hr), with sliders to alter bulk-density.
 :::
 
 :::
