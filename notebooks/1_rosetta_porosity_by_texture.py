@@ -22,7 +22,7 @@
 #
 # | Output | Definition |
 # |---|---|
-# | **Saturation** | Saturated volumetric water content θₛ (van Genuchten), if all pores were able to fill with water |
+# | **Saturation** | Saturated volumetric water content θₛ (van Genuchten), model is using total porosity so saturation as modeled is a condition if all pores were able to fill with water. |
 # | **Field-capacity** | Volumetric water content at 33 kPa (= 330 cm suction) |
 # | **Permanent-wilting-point** | Volumetric water content at 1500 kPa (= 15000 cm suction) |
 # | **Saturated hydraulic conductivity** | Ksat (cm/day) |
