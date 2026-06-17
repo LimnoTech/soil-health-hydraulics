@@ -14,7 +14,7 @@
 # ---
 
 # %% [markdown]
-# # Soil porosity by USDA texture class and bulk density (Rosetta)
+# # Soil porosity by USDA texture class and bulk density
 #
 # This notebook produces **interactive charts** showing how soil texture, compaction (bulk density), and organic matter change a soil's capacity to store and transmit water. Charts cover all 12 USDA texture classes and bulk densities from 0.8 to 1.9 g/cm³. The visualizations may inform stormwater design, soil-health assessment, and land-management decisions.
 #
@@ -52,7 +52,7 @@ from _helpers import show, vg_theta, mualem_k, line_with_extrapolation, soil_wat
 # %% [markdown]
 # ## 1. Representative (median) texture values for each USDA class
 #
-# Each texture class is represented by a single sand/silt/clay triplet — the widely used central (representative) values. Each triplet sums to 100% and falls inside the correct region of the USDA texture triangle. Adjust these if you prefer a different convention (e.g. the geometric or modified centroids of Levi, 2017, SSSAJ).
+# Each texture class is represented by a single sand/silt/clay triplet via central (representative) values. Each triplet sums to 100% and falls inside the correct region of the USDA texture triangle. Adjust these if you prefer a different convention (e.g. the geometric or modified centroids of Levi, 2017, SSSAJ).
 
 # %%
 # texture_class: (sand %, silt %, clay %)
@@ -73,7 +73,7 @@ TEXTURE_CLASSES = {
 
 # NRCS hydrologic soil group (HSG) inferred from texture class. This is the standard
 # texture-based approximation used when saturated hydraulic conductivity is unknown
-# (e.g. HYSOGs250m, SWAT). Actual HSG also depends on Ksat, depth to a restrictive
+# (e.g. HYSOGs250m, SWAT). Full HSG determination depends on Ksat, depth to a restrictive
 # layer, and water-table depth. A = low runoff / high infiltration ... D = high runoff.
 HYDROLOGIC_SOIL_GROUP = {
     "sand":            "A",
@@ -233,11 +233,11 @@ result.to_csv("rosetta_porosity_by_texture.csv", index=False)
 print("Wrote rosetta_porosity_by_texture.csv")
 
 # %% [markdown]
-# ## 6. Quick visualization of Water Storage
+# ## 6. Visualization of Water Storage
 #
 # Interactive [hvPlot](https://hvplot.holoviz.org/) / [HoloViews](https://holoviews.org/) (Bokeh)
-# line plots of total porosity, field-capacity porosity, and wilting-point porosity vs. bulk
-# density, one line per texture class. Hover for values; use the toolbar to pan/zoom.
+# line plots of total porosity, field-capacity, and wilting-point vs. bulk
+# density, one line per texture class. Hover for values, click on key to highlight each plot line, use the toolbar to pan/zoom.
 # (Hydraulic conductivity and infiltration are in Notebook 3.)
 #
 # **Extrapolation greyed out.** Each line is solid only over physically plausible bulk densities;
