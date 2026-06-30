@@ -172,8 +172,8 @@ else:
 # as you add organic matter and adjust compaction across all 12 USDA texture classes.
 # Use the **bulk density slider** to represent compaction (higher = more compacted) and the
 # **organic matter slider** to explore realistic management scenarios. The low-BD + high-OM
-# corner represents a healthy, well-structured soil; the high-BD + low-OM corner a compacted,
-# depleted one. Greyed texture columns mark physically implausible BD × OM combinations.
+# region represents a healthy, well-structured soil; the high-BD + low-OM region represents a compacted,
+# depleted soil. Greyed texture columns mark physically implausible BD × OM combinations.
 #
 # ::: {.callout-note collapse="true"}
 # ## For researchers: Minasny & McBratney slopes, blend method, and caveats
@@ -212,8 +212,8 @@ else:
 # line in the line plots marks `OC_base(BD)` and moves with the BD slider.
 # (2) The BD and OC sliders
 # are **independent "what-if" axes**; in reality organic matter *lowers* bulk density (the
-# low-BD ↔ high-OC diagonal is the realistic region), and a low-BD + high-OC corner double-counts
-# porosity, so don't read the extreme corners as coupled predictions. (3) The modifier is
+# low-BD ↔ high-OC diagonal is the realistic region), and a low-BD + high-OC region double-counts
+# porosity, so don't read the extreme corners of the graph as coupled predictions. (3) The modifier is
 # **linear**, whereas Minasny & McBratney found diminishing returns (largest gains 0→1 % OC), so it may overstate
 # gains at high OC; their data span OC < 10 %. (4) OM ≈ OC / 0.58 (van Bemmelen); the line-plot OC
 # axis is capped at 5 % (≈ 8.6 % OM) and the diagram's OM slider spans 0–8 %. (5) In the diagram,
