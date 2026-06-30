@@ -30,11 +30,18 @@ and for bulk densities from 0.8 to 1.9 g/cm³ in 0.1 steps:
 - **Saturated hydraulic conductivity** — Rosetta Ksat, as `ksat_cm_day` (cm/day) and `ksat_in_hr` (in/hr, stormwater units)
 - **Mualem–van Genuchten conductivity parameters** — `theta_r, vg_alpha_1cm, vg_n, k0_cm_day, mualem_L`, plus K at field capacity and wilting point (`k_fc_cm_day`, `k_wp_cm_day`) — carried in the CSV and used by Notebook 3
 
-Each output table also carries an **NRCS hydrologic soil group** (A–D) column, inferred from
+Each output table also carries an **NRCS hydrologic soil group** column, inferred from
 texture class (see caveat below). Output is a 144-row DataFrame (12 texture classes × 12 bulk
 densities, 0.8–1.9 g/cm³), written to `notebooks/rosetta_porosity_by_texture.csv`. Interactive plots:
 porosity/FC/WP vs. BD (§6), a stacked-bar partition (§7), and a transposed FAO-style band diagram
 (§8). Hydraulic conductivity and infiltration are visualized in **Notebook 3**.
+
+Notebook 1 also exports **per-bulk-density snapshot tables** to [`data/ROSETTA/`](data/ROSETTA)
+(`rosetta_bd_0.8.csv` … `rosetta_bd_1.9.csv`) — one CSV per bulk-density step, rows by
+**texture (HSG)** with columns *wilting point, field capacity, saturation, available water,
+drainable water* (cm³/cm³, the same six fields as the home-page slider table). The writer
+(`export_water_storage_tables` in `_helpers.py`) is shared so Notebook 2 can export its blended
+outputs the same way.
 
 ### Key methodologies (baseline)
 
@@ -64,15 +71,20 @@ porosity/FC/WP vs. BD (§6), a stacked-bar partition (§7), and a transposed FAO
   (clearest symptom: the spurious **high-BD Ksat upturn** for fine textures like silt — a
   neural-network artifact, not a real rise in conductivity), a red **⚠** on flagged bars in §7, and
   **greyed texture columns** in the §8 band diagram and in Notebook 2's BD-sensitive blend diagram.
-- **Hydrologic soil group (HSG)** — each row is tagged with an NRCS HSG (A–D) immediately to
+- **Hydrologic soil group (HSG)** — each row is tagged with an NRCS HSG immediately to
   the right of `texture_class`, via the `HYDROLOGIC_SOIL_GROUP` mapping:
 
   | HSG | Texture classes | Runoff / infiltration |
   | --- | --- | --- |
   | A | sand, loamy sand, sandy loam | low runoff / high infiltration |
-  | B | loam, silt loam, silt | moderate |
+  | B | loam, silt loam | moderate |
+  | B/D | silt | dual group — see note |
   | C | sandy clay loam | slow infiltration |
   | D | clay loam, silty clay loam, sandy clay, silty clay, clay | high runoff / very slow infiltration |
+
+  A **dual group** such as **B/D** is the NRCS convention for soils that are group **D** in their
+  natural (undrained, seasonally-high-water-table) state but the lettered group (**B**) once
+  drained; silt is classified B/D here.
 
   **Caveat:** HSG is *not* strictly defined by texture. The official NRCS definition
   (National Engineering Handbook, Part 630, Ch. 7) is based on saturated hydraulic
@@ -97,17 +109,19 @@ plant-available) and **drainable water** (SAT − FC, the fast-draining pore spa
 **stormwater** storage/infiltration) given equal billing.
 
 - **Section 1 — Mineral-baseline organic carbon (UNSODA 2.0).** Estimates the organic carbon
-  implicit in ROSETTA's mineral baseline from the 367 UNSODA 2.0 samples reporting both BD and OM
-  (≈ 1 % OC; OC declines with BD, r ≈ −0.6) and sets `OC_BASELINE_PCT` — the anchor for the blend.
+  implicit in ROSETTA's mineral baseline from the 367 UNSODA 2.0 samples reporting both BD and OM.
   The OC-vs-BD scatter overlays **OLS regressions fit separately for topsoil, subsoil, and all
-  mineral data**, with the slopes / intercepts / R² / p reported in a parameter table.
+  mineral data**, with the slopes / intercepts / R² / p reported in a parameter table. The
+  **all-mineral fit** (OC% = −3.16·BD + 5.43, r ≈ −0.63) becomes the blend's **BD-dependent
+  baseline** `OC_base(BD)` (≈ 2.9 % at BD 0.8, ≈ 1.0 % at the mean BD ≈ 1.4, floored to 0 by
+  BD ≈ 1.72); `OC_BASELINE_PCT` ≈ 1 % is kept only as the reference value at the mean BD.
 - **Section 2 — ROSETTA + Minasny & McBratney (2018) blend (recommended).** Keeps ROSETTA's
   texture + bulk-density skill for the mineral baseline, then adds M&M's empirical organic-carbon
   increments (Table 2 ΔWP / ΔAWC / ΔSAT slopes, by coarse/medium/fine texture group). We apply the
   WP, AWC and SAT slopes and derive FC = WP + AWC, so the blend reproduces M&M's headline AWC
-  sensitivity exactly, applied *relative to* the Section 1 baseline OC rather than from 0 % OC. The
-  FAO-style diagram has **two sliders — mineral bulk density and organic matter (0–8 %)** — plus
-  dedicated AWC- and drainable-vs-OC line plots.
+  sensitivity exactly, applied *relative to* the Section 1 BD-dependent baseline OC rather than from
+  0 % OC. The FAO-style diagram has **two sliders — mineral bulk density and organic matter
+  (0–8 %)** — plus dedicated AWC- and drainable-vs-OC line plots.
 - **Section 3 — Saxton & Rawls (2006).** An independent, self-contained PTF taking sand/clay/OM
   directly (calibrated for OM ≤ 8 %; higher OM flagged as extrapolation), with AWC and drainable
   line plots and an OM-slider diagram. **§3.1 validates** its OC sensitivity against M&M and shows
@@ -121,11 +135,14 @@ plant-available) and **drainable water** (SAT − FC, the fast-draining pore spa
   1.16 mm 100 mm⁻¹ = 0.0116 cm³/cm³, so the per-1 %-OC AWC effect is ~0.01–0.02 cm³/cm³ — modest,
   largest in sands, smallest/negative in clays, while saturation (and drainable water) rises more.
 - **Mineral-baseline OC (UNSODA)** — §1 reads `data_temp/unsoda_bd_om.csv` (367 UNSODA 2.0
-  samples reporting both BD and OM) to justify the anchor: mineral all-horizon mean ≈ 0.9 % OC,
-  topsoil median ≈ 1.1 %, with OC declining as BD rises (r ≈ −0.6). Default `OC_BASELINE_PCT = 1.0`.
-- **Baseline & sliders** — ROSETTA's prediction is a *nominal* baseline at OC ≈ `OC_BASELINE_PCT`
-  (not OC = 0); M&M increments are applied relative to it (values floored at ≥ 0), so the slider's
-  0 % end is a truly organic-free mineral soil (drier than ROSETTA) and OC ≈ 1 % reproduces it. The
+  samples reporting both BD and OM): mineral all-horizon mean ≈ 0.9 % OC, topsoil median ≈ 1.1 %,
+  with OC declining as BD rises (r ≈ −0.6). The **all-mineral OC~BD regression** sets the
+  BD-dependent baseline `oc_baseline_for_bd(BD)` (constants `OC_BD_SLOPE`/`OC_BD_INTERCEPT` in
+  `_helpers.py`, which §1 re-derives from UNSODA and asserts still match).
+- **Baseline & sliders** — ROSETTA's prediction is a *nominal* baseline at the **BD-dependent**
+  `OC_base(BD)` (not OC = 0); M&M increments are applied relative to it (values floored at ≥ 0), so
+  the slider's 0 % end is a truly organic-free mineral soil (drier than ROSETTA), and the firebrick
+  reference line marking `OC_base(BD)` moves with the BD slider. The
   BD and OM sliders are *independent what-if axes*; since organic matter physically lowers bulk
   density, the realistic region runs low-BD ↔ high-OM, and the extreme corner double-counts
   porosity. The modifier is linear (M&M found diminishing returns), so it may overstate gains at
@@ -145,8 +162,8 @@ pixi run python notebooks/fetch_unsoda.py    # -> notebooks/data_temp/unsoda_bd_
 - `notebooks/data_temp/` is **git-ignored** scratch (the UNSODA `.mdb` and derived CSV live there).
 - Requires **`mdbtools`** on PATH to read the `.mdb` (not on conda-forge for osx-arm64; macOS:
   `brew install mdbtools`).
-- If the extract is absent, Notebook 2 still runs — §1 skips its scatter plot and falls back to
-  the documented default `OC_BASELINE_PCT`.
+- If the extract is absent, Notebook 2 still runs — §1 skips its scatter plot and consistency
+  check, and the blend falls back to the `OC_BD_SLOPE`/`OC_BD_INTERCEPT` constants in `_helpers.py`.
 
 ---
 
