@@ -6,9 +6,9 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.3
+#       jupytext_version: 1.19.4
 #   kernelspec:
-#     display_name: default
+#     display_name: soil-health-hydraulics:default (3.14.5)
 #     language: python
 #     name: python3
 # ---
@@ -437,7 +437,7 @@ def _water_profile(bd):
 
 profiles = hv.HoloMap(
     {bd: _water_profile(bd) for bd in bulk_densities},
-    kdims=[hv.Dimension("Bulk density, g/cm³ (higher is more compacted)", default=1.4, value_format=lambda v: f"{v:.1f}")],
+    kdims=[hv.Dimension("bulk density", label="bulk density", unit="g/cm³", default=1.4, value_format=lambda v: f"{v:.1f}")],
 )
 
 profiles.opts(
@@ -447,7 +447,7 @@ profiles.opts(
         legend_position="top_left",
         xlabel="texture class (hydrologic soil group); coarse → fine",
         ylabel="Water Storage Capacity (inches per foot of soil depth)",
-        title="Soil water vs. texture (Rosetta) — {dimensions}",
+        title="Soil water vs. texture from ROSETTA for {dimensions}",
     ),
     hv.opts.Curve(xticks=texture_ticks, xrotation=45, ylim=(0, 0.7 * INCHES_PER_FOOT)),
     hv.opts.Area(xticks=texture_ticks, xrotation=45, ylim=(0, 0.7 * INCHES_PER_FOOT)),
