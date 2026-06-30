@@ -16,22 +16,22 @@
 # %% [markdown]
 # # Rosetta hydraulic conductivity & infiltration
 #
-# This notebook shows **how fast water moves through soil and how compaction slows it** — two
+# This notebook shows **how fast water moves through soil and how compaction slows it**, which are two
 # questions central to stormwater management and soil health. Three interactive charts let you
 # explore by texture class and bulk density:
 #
-# - **§1 Saturated hydraulic conductivity (Ksat)** — how fast a wet soil transmits water.
-# - **§2 Unsaturated hydraulic conductivity K(h)** — how conductivity collapses as a soil dries.
-# - **§3 Green–Ampt infiltration** f(t) / F(t) — how quickly a surface absorbs ponded water over time.
+# - **1 Saturated hydraulic conductivity (Ksat)** — how fast a saturated soil transmits water.
+# - **2 Unsaturated hydraulic conductivity K(h)** — how conductivity changes as a soil dries.
+# - **3 Green-Ampt infiltration** f(t) — how quickly a surface absorbs ponded water over time.
 #
-# All charts use stormwater units (in/hr) with bulk-density sliders. Physically implausible
-# BD × texture combinations (`implausible_bd`, θₛ > 1 − BD/2.65) are greyed as extrapolation,
+# All charts use stormwater units (in/hr) with bulk-density sliders. Bulk density data for a given texture are outside of
+# calibration range of ROSETTA model are greyed as extrapolation,
 # as in Notebook 1.
 #
 # ::: {.callout-note collapse="true"}
 # ## For researchers: data source
 # Charts read `rosetta_porosity_by_texture.csv` (run Notebook 1 first), which carries Rosetta's
-# saturated **Ksat** and the **Mualem–van Genuchten** unsaturated-conductivity parameters
+# saturated **Ksat** and the **Mualem-van Genuchten** unsaturated-conductivity parameters
 # (`k0_cm_day`, `mualem_L`, `vg_alpha_1cm`, `vg_n`).
 # :::
 
@@ -45,7 +45,7 @@ import holoviews as hv
 # also sets the shared pandas float_format. See notebooks/_helpers.py.
 from _helpers import show, mualem_k, line_with_extrapolation
 
-# Rosetta baseline + Mualem–van Genuchten parameters from Notebook 1
+# Rosetta baseline + Mualem-van Genuchten parameters from Notebook 1
 result = pd.read_csv("rosetta_porosity_by_texture.csv")
 
 # Reconstruct shared constants from the table (canonical sand -> clay order)
@@ -59,7 +59,7 @@ texture_ticks = [(i, f"{cls} ({HYDROLOGIC_SOIL_GROUP[cls]})") for cls, i in text
 
 
 # mualem_k and line_with_extrapolation are shared with Notebook 1 and imported from _helpers.
-# bd_slider_line (the slider-driven K(h) / Green–Ampt line plots) is specific to this notebook.
+# bd_slider_line (the slider-driven K(h) / Green-Ampt line plots) is specific to this notebook.
 def bd_slider_line(dfL, x, y, xlabel, ylabel, title, **kw):
     """Line plot (one per texture) with a bulk-density slider; rows flagged implausible_bd are
     drawn grey-dashed. Returns a HoloMap keyed by bulk_density_g_cm3 (caller overlays/redims)."""
@@ -85,10 +85,10 @@ show(result)
 # ## 1. Saturated hydraulic conductivity (Ksat)
 #
 # Rosetta's saturated hydraulic conductivity vs. bulk density, one line per texture class, on a
-# **log axis** in stormwater units (in/hr); grey-dashed where extrapolated (`implausible_bd`).
+# **log axis** in stormwater units (in/hr); grey-dashed where bulk denisty-texture combinations are outside of calibration.
 #
-# Note the spurious **upturn at high BD for silt and other fine textures** — a neural-network
-# *extrapolation artifact* (those dense fine-soil states are absent from Rosetta's training data),
+# Note the spurious **upturn at high BD for silt and other fine textures** are an
+# *extrapolation artifact* (those dense fine-soil states are absent from empirical observations used to build Rosetta),
 # not a real rise in conductivity; it falls entirely inside the greyed region.
 
 # %%
@@ -102,24 +102,24 @@ line_with_extrapolation(
 
 # %% [markdown]
 # ::: {.callout-tip appearance="simple"}
-# **Takeaway:** Sandy soils transmit water orders of magnitude faster than clays, and increasing bulk density (compaction) reduces Ksat sharply across all texture classes — a healthy, loose soil infiltrates far more water than a compacted one of the same texture.
+# **Takeaway:** Sandy soils transmit water orders of magnitude faster than clays, and increasing bulk density (compaction) reduces Ksat sharply across all texture classes. **A healthy, loose soil infiltrates far more water than a compacted one of the same texture.**
 # :::
 
 # %% [markdown]
 # ## 2. Unsaturated hydraulic conductivity K(h)
 #
-# As soil dries out, its ability to conduct water drops by many orders of magnitude. The
-# log–log chart below shows how K falls with increasing suction for each texture class — use the
+# As soil dries out, its ability to transmit water drops by many orders of magnitude. The
+# log-log chart below shows how K(h) falls with increasing matric potential (suction) for each texture class. Use the
 # bulk-density slider to see how compaction shifts every curve downward. Dotted verticals mark
-# field capacity (FC, 330 cm suction) and wilting point (WP, 15 000 cm suction).
+# field capacity (FC, 330 cm suction) and wilting point (WP, 15000 cm suction).
 #
 # ::: {.callout-note collapse="true"}
-# ## For researchers: Mualem–van Genuchten K(h)
-# Rosetta gives the full **Mualem–van Genuchten** parameter set, so conductivity is defined not
+# ## For researchers: Mualem-van Genuchten K(h)
+# Rosetta gives the full **Mualem-van Genuchten** parameter set, so conductivity is defined not
 # just at saturation but at every suction: K(h) = K0·Se(h)^L·[1 − (1 − Se^(1/m))^m]² with
 # Se(h) = [1 + (αh)^n]^(−m) (see `mualem_k`). Curves use Rosetta's **K0** (matching point) and **L**
-# (columns 5–6), *not* Ksat. `k_fc_cm_day` / `k_wp_cm_day` in the table are K at those tensions.
-# Log–log axes; bulk-density slider; implausible (`implausible_bd`) BD × texture combinations
+# (columns 5-6), *not* Ksat. `k_fc_cm_day` / `k_wp_cm_day` in the table are K at those tensions.
+# Log-log axes; bulk-density slider; implausible (`implausible_bd`) BD × texture combinations
 # are grey-dashed.
 # :::
 
@@ -158,16 +158,16 @@ _kh_markers = (
 # :::
 
 # %% [markdown]
-# ## 3. Green–Ampt infiltration
+# ## 3. Green-Ampt infiltration
 #
-# Infiltration starts fast — especially in dry, coarse, or healthy soils — and slows toward a
+# Infiltration starts fast, especially in healthy soils, and slows toward a
 # steady rate as the wetting front advances. The two charts below show the infiltration rate f(t)
 # and cumulative depth F(t) over the first two hours of ponded conditions. Use the bulk-density
 # slider to see how compaction cuts both curves dramatically, increasing runoff risk.
 #
 # ::: {.callout-note collapse="true"}
-# ## For researchers: Green–Ampt parameterization
-# The **Green–Ampt** model gives the infiltration rate f and cumulative depth F for ponded /
+# ## For researchers: Green-Ampt parameterization
+# The **Green-Ampt** model gives the infiltration rate f and cumulative depth F for ponded /
 # intense-rain conditions:
 #
 # $$f = K_s\left(1 + \frac{\psi_f\,\Delta\theta}{F}\right), \qquad t = \frac{1}{K_s}\left[F - \psi_f\Delta\theta\,\ln\!\left(1 + \frac{F}{\psi_f\Delta\theta}\right)\right]$$
@@ -185,15 +185,15 @@ _kh_markers = (
 # %%
 hv.output(widget_location="bottom")
 
-# Rawls, Brakensiek & Miller (1983) Green–Ampt wetting-front suction head, cm (silt ≈ silt loam)
+# Rawls, Brakensiek & Miller (1983) Green-Ampt wetting-front suction head, cm (silt ≈ silt loam)
 RAWLS_PSI_F_CM = {
     "sand": 4.95, "loamy sand": 6.13, "sandy loam": 11.01, "loam": 8.89,
     "silt loam": 16.68, "silt": 16.68, "sandy clay loam": 21.85, "clay loam": 20.88,
     "silty clay loam": 27.30, "sandy clay": 23.90, "silty clay": 29.22, "clay": 31.63,
 }
 GA_T_MAX_HR = 2.0  # plot the first 2 hours
-# Geometric (log) spacing keeps the early-time / small-F detail dense — where slow soils
-# spend the whole 2-hour window — while using far fewer points than a uniform grid.
+# Geometric (log) spacing keeps the early-time / small-F detail dense, where slow soils
+# spend the whole 2-hour window, while using far fewer points than a uniform grid.
 _F_grid = np.geomspace(0.2, 80.0, 120)  # cumulative infiltration, cm
 
 _ga_rows = []
@@ -213,7 +213,7 @@ ga_df["texture_class"] = pd.Categorical(ga_df["texture_class"], categories=list(
 bd_slider_line(
     ga_df, "t_hr", "f_in_hr",
     "time (hours)", "infiltration rate f (in/hr, log)",
-    "Green–Ampt infiltration rate vs. time — {dimensions}",
+    "Green-Ampt infiltration rate vs. time — {dimensions}",
     logy=True, ylim=(0.05, 300),
 ).redim(bulk_density_g_cm3=hv.Dimension("Bulk density, g/cm³ (higher is more compacted)", default=1.4, value_format=lambda v: f"{v:.1f}"))
 
@@ -223,7 +223,7 @@ hv.output(widget_location="bottom")
 bd_slider_line(
     ga_df, "t_hr", "F_in",
     "time (hours)", "cumulative infiltration F (inches)",
-    "Green–Ampt cumulative infiltration vs. time — {dimensions}",
+    "Green-Ampt cumulative infiltration vs. time — {dimensions}",
     ylim=(0, 25),
 ).redim(bulk_density_g_cm3=hv.Dimension("Bulk density, g/cm³ (higher is more compacted)", default=1.4, value_format=lambda v: f"{v:.1f}"))
 
