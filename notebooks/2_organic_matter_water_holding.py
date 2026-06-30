@@ -17,8 +17,8 @@
 # # Organic-matter effects on soil water holding
 #
 # Organic matter and bulk density are the two soil properties practitioners can most directly
-# influence through management. This notebook shows how increasing organic matter — and easing
-# compaction — shifts water into **plant-available storage** (field capacity − wilting point)
+# influence through management. This notebook shows how increasing organic matter and
+# decompaction shifts water into **plant-available storage** (field capacity − wilting point)
 # and **drainable storage** (saturation − field capacity), the fast-draining pore space that
 # matters most for stormwater infiltration and detention. Gains are largest in coarse-textured
 # soils and diminish in clays.
