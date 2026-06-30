@@ -10,6 +10,8 @@ backend, and sets a wheel-zoom-off ``hv.opts.defaults(... active_tools=[])`` so 
 zoom a figure until the user toggles it.
 """
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import hvplot.pandas  # noqa: F401  (registers the .hvplot accessor used by line_with_extrapolation)
@@ -118,7 +120,22 @@ def line_with_extrapolation(result, ycol, ylabel, title, plot_opts=None, **extra
 
 # --- Minasny & McBratney (2018) organic-matter blend (shared by NB2 and the home page) ---
 VB = 0.58  # van Bemmelen factor: OM ≈ OC / VB
-OC_BASELINE_PCT = 1.0  # ROSETTA mineral-baseline organic carbon anchor (%), from UNSODA (NB2 §1)
+OC_BASELINE_PCT = 1.0  # reference mineral-baseline OC (%) at the mean mineral BD ≈ 1.4 (NB2 §1)
+
+# ROSETTA mineral-baseline organic carbon as a FUNCTION of bulk density, from the UNSODA 2.0
+# all-mineral OC~BD regression (NB2 §1): OC% = OC_BD_SLOPE·BD + OC_BD_INTERCEPT (r ≈ −0.63).
+# The M&M increments are applied relative to this BD-dependent baseline, so the ROSETTA prediction
+# carries the OC mineral soils typically have at that BD (≈ 2.9% at BD 0.8, 1.0% at BD 1.4, 0 by
+# BD ≈ 1.72). NB2 §1 recomputes these from UNSODA and asserts they still match these constants.
+OC_BD_SLOPE = -3.1602      # %OC per g/cm³
+OC_BD_INTERCEPT = 5.4266   # %OC at BD = 0 (extrapolated intercept)
+
+
+def oc_baseline_for_bd(bd):
+    """ROSETTA mineral-baseline organic carbon (%) at bulk density `bd` (g/cm³), from the UNSODA
+    all-mineral OC~BD regression (NB2 §1), floored at 0 — negative OC is nonsensical and the fit
+    crosses zero near BD ≈ 1.72. At the mean mineral BD ≈ 1.4 this ≈ ``OC_BASELINE_PCT``."""
+    return np.maximum(OC_BD_SLOPE * np.asarray(bd, dtype=float) + OC_BD_INTERCEPT, 0.0)
 
 # Table 2 slopes, mm H2O per 100 mm per +1% OC (= vol %), by USDA texture group
 MM_SLOPES = {
@@ -133,23 +150,26 @@ MM_GROUP = {
 }
 
 
-def soil_water_bd_om_blend_table(result, bd, om, oc_baseline=OC_BASELINE_PCT):
+def soil_water_bd_om_blend_table(result, bd, om, oc_baseline=None):
     """ROSETTA mineral baseline + Minasny & McBratney (2018) organic-matter increments for a
     single (bulk density `bd`, organic matter `om` %) state — one row per texture class in the
     canonical sand→clay order of `result`. Volumetric water contents (cm³/cm³).
 
     Applies M&M's WP/AWC/SAT slopes relative to `oc_baseline` and derives FC = WP + AWC so AWC
-    matches M&M exactly (mirrors NB2's _blend_profile). `implausible` flags blended SAT exceeding
-    the BD-implied pore space (1 − BD/2.65). The single source feeding both the FAO figure and the
-    home-page / NB2 linked table.
+    matches M&M exactly (mirrors NB2's _blend_profile). `oc_baseline` defaults to the BD-dependent
+    mineral baseline ``oc_baseline_for_bd(bd)`` (the UNSODA all-mineral OC~BD fit); pass a scalar to
+    override. `implausible` flags blended SAT exceeding the BD-implied pore space (1 − BD/2.65). The
+    single source feeding both the FAO figure and the home-page / NB2 linked table.
     """
+    if oc_baseline is None:
+        oc_baseline = float(oc_baseline_for_bd(bd))
     base = result.set_index(["texture_class", "bulk_density_g_cm3"])
     texture_classes = list(result["texture_class"].drop_duplicates())
     hsg = dict(
         result[["texture_class", "hydrologic_soil_group"]]
         .drop_duplicates().itertuples(index=False, name=None)
     )
-    d_oc = om * VB - oc_baseline  # OM% -> OC%, relative to the mineral-baseline OC
+    d_oc = om * VB - oc_baseline  # OM% -> OC%, relative to the BD-dependent mineral-baseline OC
     rows = []
     for cls in texture_classes:
         s = MM_SLOPES[MM_GROUP[cls]]
@@ -194,14 +214,14 @@ def soil_water_texture_band_diagram(x, pwp, fc, por, *, texture_labels=None, imp
         * hv.Area((x, por, fc), vdims=["y", "y2"]).opts(color="blue", alpha=0.40, line_alpha=0)
     )
     lines = (
-        hv.Curve((x, pwp), label="Permanent wilting point").opts(color="black", line_width=2)
-        * hv.Curve((x, fc), label="Field capacity").opts(color="black", line_width=2)
-        * hv.Curve((x, por), label="Total porosity").opts(color="gray", line_width=1.5, line_dash="dashed")
+        hv.Curve((x, por), label="Saturation").opts(color="gray", line_width=2, line_dash="solid")
+        * hv.Curve((x, fc), label="Field Capacity").opts(color="black", line_width=2, line_dash="dashed")
+        * hv.Curve((x, pwp), label="Permanent Wilting Point").opts(color="black", line_width=2, line_dash="dotted")
     )
     labels = (
-        hv.Text(8, pwp[8] * 0.5, "Unavailable\nwater").opts(text_color="saddlebrown", text_font_size="9pt")
-        * hv.Text(5, (pwp[5] + fc[5]) / 2, "Available water").opts(text_color="darkgreen", text_font_size="10pt")
-        * hv.Text(2.2, (fc[2] + por[2]) / 2, "Drainable\nwater").opts(text_color="navy", text_font_size="10pt")
+        hv.Text(8, pwp[8] * 0.5, "Unavailable\nwater").opts(text_color="saddlebrown", text_font_size="12pt")
+        * hv.Text(5, (pwp[5] + fc[5]) / 2, "Available water").opts(text_color="darkgreen", text_font_size="12pt")
+        * hv.Text(2.2, (fc[2] + por[2]) / 2, "Drainable\nwater").opts(text_color="navy", text_font_size="12pt")
     )
     overlay = bands * lines * labels
     if implausible is not None:
@@ -230,6 +250,15 @@ def soil_water_texture_band_diagram(x, pwp, fc, por, *, texture_labels=None, imp
             fill_alpha=0, line_alpha=0, tools=[hover_tool]
         )
         overlay = overlay * hover_layer
+    # Pin the x-range to the texture extent (sand at the left edge, clay at the right edge),
+    # removing Bokeh's default auto-range padding. The ±0.5 hover rects / VSpans clip at the edges.
+    # Also bump the title / axis-label / tick / legend fonts up from Bokeh's small defaults.
+    overlay = overlay.opts(
+        hv.opts.Overlay(
+            xlim=(float(np.min(x)), float(np.max(x))),
+            fontsize={"title": 14, "labels": 12, "xticks": 11, "yticks": 11, "legend": 12},
+        )
+    )
     return overlay
 
 
@@ -251,3 +280,45 @@ def soil_water_table_html(df):
         "</style>"
     )
     return css + table_html
+
+
+# Canonical water-storage columns shared by the home-page table and the per-BD CSV exports:
+# source column -> exported (display) name. drainable_water is derived (SAT − FC) if absent.
+WATER_STORAGE_COLUMNS = {
+    "wilting_point_porosity": "wilting point",
+    "field_capacity_porosity": "field capacity",
+    "total_porosity": "saturation",
+    "available_water_capacity": "available water",
+    "drainable_water": "drainable water",
+}
+
+
+def export_water_storage_tables(df, outdir, *, prefix="rosetta", round_to=3):
+    """Write one CSV snapshot per bulk-density step — rows = ``texture (HSG)``, columns =
+    wilting point / field capacity / saturation / available water / drainable water (cm³/cm³,
+    rounded to `round_to`). Files are named ``{prefix}_bd_{bd:.1f}.csv`` in `outdir` (created if
+    needed). Reusable across notebooks (ROSETTA baseline in NB1, blended outputs in NB2).
+
+    `df` must carry ``texture_class``, ``hydrologic_soil_group``, ``bulk_density_g_cm3`` and the
+    porosity columns in ``WATER_STORAGE_COLUMNS``; ``drainable_water`` is derived as
+    total_porosity − field_capacity_porosity when not already present. Texture row order follows
+    `df` (canonical sand → clay). Returns the list of written ``Path``s.
+    """
+    df = df.copy()
+    if "drainable_water" not in df.columns:
+        df["drainable_water"] = df["total_porosity"] - df["field_capacity_porosity"]
+    outdir = Path(outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    texture_order = list(df["texture_class"].drop_duplicates())
+    written = []
+    for bd, g in df.groupby("bulk_density_g_cm3", sort=True):
+        g = g.set_index("texture_class").loc[texture_order].reset_index()  # canonical sand → clay
+        table = pd.DataFrame(
+            {"texture (HSG)": g["texture_class"].astype(str) + " (" + g["hydrologic_soil_group"].astype(str) + ")"}
+        )
+        for src, name in WATER_STORAGE_COLUMNS.items():
+            table[name] = g[src].to_numpy().round(round_to)
+        path = outdir / f"{prefix}_bd_{bd:.1f}.csv"
+        table.to_csv(path, index=False)
+        written.append(path)
+    return written

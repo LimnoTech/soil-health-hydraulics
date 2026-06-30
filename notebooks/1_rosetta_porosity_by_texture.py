@@ -47,7 +47,7 @@ from rosetta import rosetta, SoilData
 
 # Shared helpers (display table, van Genuchten–Mualem functions, extrapolation-aware line plot);
 # importing _helpers also sets the shared pandas float_format. See notebooks/_helpers.py.
-from _helpers import show, vg_theta, mualem_k, line_with_extrapolation, soil_water_texture_band_diagram
+from _helpers import show, vg_theta, mualem_k, line_with_extrapolation, soil_water_texture_band_diagram, export_water_storage_tables
 
 # %% [markdown]
 # ## 1. Representative (median) texture values for each USDA class
@@ -75,13 +75,15 @@ TEXTURE_CLASSES = {
 # texture-based approximation used when saturated hydraulic conductivity is unknown
 # (e.g. HYSOGs250m, SWAT). Full HSG determination depends on Ksat, depth to a restrictive
 # layer, and water-table depth. A = low runoff / high infiltration ... D = high runoff.
+# A dual group like "B/D" is the NRCS convention for soils that are group D in their natural
+# (undrained, high-water-table) state but the lettered group (B) once drained — silt qualifies.
 HYDROLOGIC_SOIL_GROUP = {
     "sand":            "A",
     "loamy sand":      "A",
     "sandy loam":      "A",
     "loam":            "B",
     "silt loam":       "B",
-    "silt":            "B",
+    "silt":            "B/D",
     "sandy clay loam": "C",
     "clay loam":       "D",
     "silty clay loam": "D",
@@ -231,6 +233,21 @@ show(result)
 # Save to CSV
 result.to_csv("rosetta_porosity_by_texture.csv", index=False)
 print("Wrote rosetta_porosity_by_texture.csv")
+
+# %% [markdown]
+# ### Per-bulk-density water-storage snapshots
+#
+# Export one CSV per bulk-density step to `data/ROSETTA/` — rows by **texture (HSG)**, columns
+# **wilting point, field capacity, saturation, available water, drainable water** (cm³/cm³, the same
+# six fields as the home-page slider table). These are static snapshots of the raw ROSETTA outputs
+# at each bulk density. `export_water_storage_tables` is shared with `_helpers` so Notebook 2 can
+# later export its blended outputs the same way.
+
+# %%
+# NB1 executes in notebooks/ (Quarto execute-dir: file), so the repo-root data/ROSETTA is ../data/ROSETTA.
+_rosetta_exports = export_water_storage_tables(result, "../data/ROSETTA", prefix="rosetta")
+print(f"Wrote {len(_rosetta_exports)} per-bulk-density tables to data/ROSETTA/:")
+print("  " + ", ".join(p.name for p in _rosetta_exports))
 
 # %% [markdown]
 # ## 6. Visualization of Water Storage

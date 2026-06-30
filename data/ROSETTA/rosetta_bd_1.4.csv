@@ -1,0 +1,13 @@
+texture (HSG),wilting point,field capacity,saturation,available water,drainable water
+sand (A),0.054,0.064,0.401,0.01,0.337
+loamy sand (A),0.062,0.127,0.4,0.065,0.273
+sandy loam (A),0.089,0.213,0.396,0.124,0.183
+loam (B),0.131,0.29,0.404,0.159,0.114
+silt loam (B),0.115,0.31,0.405,0.195,0.095
+silt (B/D),0.088,0.297,0.418,0.209,0.121
+sandy clay loam (C),0.146,0.285,0.434,0.138,0.149
+clay loam (D),0.175,0.332,0.434,0.157,0.102
+silty clay loam (D),0.172,0.354,0.439,0.182,0.085
+sandy clay (D),0.194,0.332,0.463,0.139,0.13
+silty clay (D),0.202,0.37,0.461,0.168,0.091
+clay (D),0.231,0.375,0.481,0.144,0.106

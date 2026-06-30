@@ -42,7 +42,7 @@ import holoviews as hv
 from scipy.stats import linregress
 
 # Shared display helper (and the shared pandas float_format, set on import). See notebooks/_helpers.py.
-from _helpers import show, soil_water_texture_band_diagram, soil_water_bd_om_blend_table, soil_water_table_html, VB, OC_BASELINE_PCT, MM_SLOPES, MM_GROUP
+from _helpers import show, soil_water_texture_band_diagram, soil_water_bd_om_blend_table, soil_water_table_html, VB, OC_BASELINE_PCT, oc_baseline_for_bd, OC_BD_SLOPE, OC_BD_INTERCEPT, MM_SLOPES, MM_GROUP
 
 # ROSETTA texture × bulk-density baseline produced by rosetta_porosity_by_texture.ipynb
 result = pd.read_csv("rosetta_porosity_by_texture.csv")
@@ -80,8 +80,12 @@ show(result)
 # density (Pearson r ≈ −0.6); the scatter below overlays **OLS regressions of OC on bulk density**
 # fit separately for topsoil, subsoil, and all mineral data, with the slopes/intercepts/R²/p
 # reported in the accompanying table. For the mineral subset (OM ≤ 20 %): all-horizon mean ≈ 0.9 %
-# OC; **mineral topsoil (≤15 cm) median ≈ 1.1 % OC**. We anchor ROSETTA at **`OC_BASELINE_PCT`
-# (default 1.0 % OC)**; Section 2 then applies the Minasny & McBratney increments *relative to that* baseline.
+# OC; **mineral topsoil (≤15 cm) median ≈ 1.1 % OC**. Rather than a single anchor, we use the
+# **all-mineral fit as a BD-dependent baseline** — `OC_base(BD) = OC_BD_SLOPE·BD + OC_BD_INTERCEPT`
+# (floored at 0) — so ROSETTA's prediction carries the OC mineral soils typically have at that bulk
+# density (≈ 2.9 % at BD 0.8, ≈ 1.0 % at the mean BD ≈ 1.4, 0 by BD ≈ 1.72). Section 2 applies the
+# Minasny & McBratney increments *relative to that* baseline. (`OC_BASELINE_PCT` ≈ 1 % is retained
+# only as the reference value at the mean BD.)
 #
 # `data_temp/` is git-ignored; run `pixi run python notebooks/fetch_unsoda.py` to (re)create
 # the UNSODA extract read below.
@@ -90,9 +94,10 @@ show(result)
 # %%
 import os
 
-# Organic-carbon anchor for the ROSETTA mineral baseline (estimated below from UNSODA).
-# UNSODA mineral subset: all-horizon mean ~0.9 %, topsoil median ~1.1 % — round 1.0 % used here.
-OC_BASELINE_PCT = 1.0  # % organic carbon; adjust to taste
+# Reference mineral-baseline OC at the mean mineral BD ≈ 1.4 (UNSODA mineral subset: all-horizon
+# mean ~0.9 %, topsoil median ~1.1 %). The blend (Section 2) uses the BD-DEPENDENT baseline
+# oc_baseline_for_bd(BD) from the all-mineral OC~BD fit below, not this scalar.
+OC_BASELINE_PCT = 1.0  # % organic carbon, reference only (value of the all-mineral fit at BD ≈ 1.4)
 
 _unsoda_path = "data_temp/unsoda_bd_om.csv"
 if os.path.exists(_unsoda_path):
@@ -113,9 +118,11 @@ if os.path.exists(_unsoda_path):
     }
     _reg_colors = {"topsoil (≤15 cm)": "#1f77b4", "subsoil (>15 cm)": "#ff7f0e", "all mineral": "black"}
     _bd_line = np.array([mineral["bulk_density_g_cm3"].min(), mineral["bulk_density_g_cm3"].max()])
-    _reg_rows, _reg_lines = [], []
+    _reg_rows, _reg_lines, _all_mineral_lr = [], [], None
     for _name, _g in _reg_groups.items():
         _lr = linregress(_g["bulk_density_g_cm3"], _g["OC_pct"])
+        if _name == "all mineral":
+            _all_mineral_lr = _lr
         _reg_rows.append({
             "regression": _name,
             "n": len(_g),
@@ -139,8 +146,15 @@ if os.path.exists(_unsoda_path):
         title="UNSODA 2.0: organic carbon vs. bulk density (mineral soils)",
         width=760, height=460, legend="top_right", alpha=0.6, size=25, ylim=(0, 10), grid=True,
     )
-    _baseline = hv.HLine(OC_BASELINE_PCT).opts(color="firebrick", line_dash="dashed", line_width=2)
-    display(_scatter * _baseline * hv.Overlay(_reg_lines))
+    # The all-mineral fit (black solid) IS the BD-dependent ROSETTA baseline used by the blend.
+    # Verify the live UNSODA fit still matches the constants hard-coded in _helpers (the home page
+    # relies on those, since it never runs this regression); fail loudly if UNSODA has drifted.
+    assert np.isclose(_all_mineral_lr.slope, OC_BD_SLOPE, atol=1e-2) and \
+        np.isclose(_all_mineral_lr.intercept, OC_BD_INTERCEPT, atol=1e-2), (
+        f"all-mineral OC~BD fit ({_all_mineral_lr.slope:.4f}, {_all_mineral_lr.intercept:.4f}) "
+        f"drifted from _helpers (OC_BD_SLOPE={OC_BD_SLOPE}, OC_BD_INTERCEPT={OC_BD_INTERCEPT}); "
+        f"update the constants in notebooks/_helpers.py.")
+    display(_scatter * hv.Overlay(_reg_lines))
 
     # Regression parameters table (p-values formatted in scientific notation to keep precision).
     _reg_show = reg_df.copy()
@@ -177,7 +191,8 @@ else:
 # | Fine | 0.54 | 1.41 | 3.23 |
 #
 # **Blend** (volumetric, cm³/cm³); ROSETTA gives the baseline at the **mineral bulk density set
-# by the BD slider**, anchored at **OC = OC_base** (≈ 1 %, from UNSODA — see Section 1):
+# by the BD slider**, anchored at the **BD-dependent baseline OC, OC_base(BD)**, from the UNSODA
+# all-mineral OC~BD fit (Section 1; ≈ 2.9 % at BD 0.8, ≈ 1.0 % at BD 1.4, 0 by BD ≈ 1.72):
 #
 # - WP(OC)  = WP\_ROSETTA + (ΔWP/100)·(OC − OC_base)
 # - AWC(OC) = AWC\_ROSETTA + (ΔAWC/100)·(OC − OC_base)   (AWC\_ROSETTA = FC − WP from ROSETTA)
@@ -190,9 +205,11 @@ else:
 # property independently, ΔAWC ≠ ΔFC − ΔWP; anchoring on ΔFC instead would understate the AWC
 # response by ~25–50 %, especially in fine soils.)
 #
-# **Caveats.** (1) ROSETTA's prediction is a *nominal* baseline at **OC ≈ `OC_BASELINE_PCT`**
-# (≈ 1 %, from UNSODA — Section 1), not OC = 0; the Minasny & McBratney increments are applied relative to it, so
-# the slider's 0 % end is a truly organic-free mineral soil (drier than ROSETTA), clamped at ≥ 0.
+# **Caveats.** (1) ROSETTA's prediction is a *nominal* baseline at the **BD-dependent baseline OC,
+# `OC_base(BD)`** (all-mineral fit, Section 1 — ≈ 1 % near BD 1.4, higher at low BD, 0 by BD ≈ 1.72),
+# not OC = 0; the Minasny & McBratney increments are applied relative to it, so the slider's 0 % end
+# is a truly organic-free mineral soil (drier than ROSETTA), clamped at ≥ 0. The firebrick reference
+# line in the line plots marks `OC_base(BD)` and moves with the BD slider.
 # (2) The BD and OC sliders
 # are **independent "what-if" axes**; in reality organic matter *lowers* bulk density (the
 # low-BD ↔ high-OC diagonal is the realistic region), and a low-BD + high-OC corner double-counts
@@ -207,14 +224,15 @@ else:
 
 # %%
 # ROSETTA mineral baseline (per bulk density) + additive Minasny & McBratney (2018) OC
-# increments, applied RELATIVE to OC_BASELINE_PCT, across the full bulk-density range.
-# VB, MM_SLOPES, MM_GROUP are imported from _helpers; OC_BASELINE_PCT set in §1 above.
+# increments, applied RELATIVE to the BD-dependent baseline oc_baseline_for_bd(BD), across the full
+# bulk-density range. VB, MM_SLOPES, MM_GROUP, oc_baseline_for_bd are imported from _helpers.
 
 oc_values = np.round(np.arange(0.0, 8.0 + 1e-9, 0.5), 2)  # organic carbon %, 0–8 (≈ 0–14% OM)
 
 base = result.set_index(["texture_class", "bulk_density_g_cm3"])
 blend_rows = []
 for bd in bulk_densities:
+    oc_base_bd = float(oc_baseline_for_bd(bd))   # BD-dependent mineral-baseline OC (all-mineral fit)
     for oc in oc_values:
         for cls in TEXTURE_CLASSES:
             s = MM_SLOPES[MM_GROUP[cls]]
@@ -222,7 +240,7 @@ for bd in bulk_densities:
             fc0 = base.loc[(cls, bd), "field_capacity_porosity"]
             wp0 = base.loc[(cls, bd), "wilting_point_porosity"]
             awc0 = fc0 - wp0
-            d_oc = oc - OC_BASELINE_PCT          # increments relative to the mineral-baseline OC
+            d_oc = oc - oc_base_bd               # increments relative to the BD-dependent baseline OC
             wp = max(wp0 + s["WP"] / 100 * d_oc, 0.0)
             awc = max(awc0 + s["AWC"] / 100 * d_oc, 0.0)   # Minasny & McBratney AWC slope; floor at 0
             sat = max(sat0 + s["SAT"] / 100 * d_oc, wp + awc)  # keep SAT >= FC
@@ -279,14 +297,22 @@ def blend_line(ycol, ylabel, title, ylim):
         .opts(show_legend=False)
     )
     y_lab = ylim[1]  # labels just below the top of the plot
-    refs = (
-        hv.VLine(OC_BASELINE_PCT).opts(color="firebrick", line_dash="dashed", line_width=1)  # baseline OC
-        * hv.VLine(om8_oc).opts(color="black", line_dash="dotted", line_width=1)              # 8% OM
-        * hv.Text(OC_BASELINE_PCT, y_lab, " ROSETTA baseline OC ≈ 1%", halign="left", valign="top").opts(
-            text_color="firebrick", text_font_size="8pt")
-        * hv.Text(om8_oc, y_lab, "8% OM ", halign="right", valign="top").opts(
-            text_color="black", text_font_size="8pt")
-    )
+
+    # The baseline-OC reference is now BD-dependent (all-mineral fit), so it must move with the BD
+    # slider: build one ref frame per bulk density as a HoloMap keyed on the same dimension as the
+    # solid/dashed line HoloMaps, so they overlay frame-by-frame.
+    def _refs_for_bd(bd):
+        ocb = float(oc_baseline_for_bd(bd))
+        return (
+            hv.VLine(ocb).opts(color="firebrick", line_dash="dashed", line_width=1)   # BD-dependent baseline OC
+            * hv.VLine(om8_oc).opts(color="black", line_dash="dotted", line_width=1)   # 8% OM
+            * hv.Text(ocb, y_lab, f" ROSETTA baseline OC ≈ {ocb:.1f}%", halign="left", valign="top").opts(
+                text_color="firebrick", text_font_size="8pt")
+            * hv.Text(om8_oc, y_lab, "8% OM ", halign="right", valign="top").opts(
+                text_color="black", text_font_size="8pt")
+        )
+
+    refs = hv.HoloMap({bd: _refs_for_bd(bd) for bd in bulk_densities}, kdims="bulk_density_g_cm3")
     return (solid * dashed * refs).redim(
         bulk_density_g_cm3=hv.Dimension("Bulk density, g/cm³ (higher is more compacted)", default=1.4, value_format=lambda v: f"{v:.1f}")
     )
@@ -342,7 +368,7 @@ om_grid = [round(float(o), 1) for o in np.arange(0.0, 8.0 + 1e-9, 1.0)]  # organ
 # layout is embedded (embed=True) so every (BD, OM) state works in static HTML without a kernel.
 # The styled HTML table (soil_water_table_html) gives bold/wrapped headers, a hidden index, full
 # texture names on one line, and all rows — formatting a Bokeh DataTable cannot express.
-_SLIDER_CSS = [":host, :host * { font-size: 1rem; }"]  # enlarge slider title + tick labels
+_SLIDER_CSS = [":host, :host * { font-size: 0.85rem; }"]  # sized so the BD slider title stays on one line
 bd_slider = pn.widgets.DiscreteSlider(
     name="Bulk density, g/cm³ (higher is more compacted)",
     options=[round(float(b), 1) for b in bulk_densities], value=1.4, width=380, stylesheets=_SLIDER_CSS)
@@ -365,7 +391,7 @@ def _blend_figure(bd, om):
         hv.opts.Overlay(width=720, height=520, toolbar="right", legend_position="top_left",
                         xlabel="texture class (hydrologic soil group); coarse → fine",
                         ylabel="Water Storage Capacity (inches per foot of soil depth)",
-                        title="Soil water storage vs. texture — ROSETTA + Minasny & McBratney blend"),
+                        title=f"Soil water vs. texture for bulk density {bd:.1f} g/cm³ & organic matter {om:g}%"),
         hv.opts.Curve(xticks=texture_ticks, xrotation=45, ylim=(0, 10)),
         hv.opts.Area(xticks=texture_ticks, xrotation=45, ylim=(0, 10)),
     )

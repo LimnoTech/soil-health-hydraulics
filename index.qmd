@@ -57,7 +57,7 @@ bulk_densities = [round(float(b), 1) for b in np.sort(result["bulk_density_g_cm3
 om_grid = [round(float(o), 1) for o in np.arange(0.0, 8.0 + 1e-9, 1.0)]
 
 # One shared pair of sliders drives BOTH the figure and the table; placed BETWEEN them.
-_SLIDER_CSS = [":host, :host * { font-size: 1rem; }"]  # enlarge slider title + tick labels
+_SLIDER_CSS = [":host, :host * { font-size: 0.85rem; }"]  # sized so the BD slider title stays on one line
 bd_slider = pn.widgets.DiscreteSlider(
     name="Bulk density, g/cm³ (higher is more compacted)", options=bulk_densities, value=1.4,
     width=380, stylesheets=_SLIDER_CSS)
@@ -81,7 +81,7 @@ def _figure(bd, om):
         hv.opts.Overlay(width=720, height=520, toolbar="right", legend_position="top_left",
                         xlabel="texture class (hydrologic soil group); coarse → fine",
                         ylabel="Water Storage Capacity (inches per foot of soil depth)",
-                        title="Soil water storage vs. texture — ROSETTA + Minasny & McBratney blend"),
+                        title=f"Soil water vs. texture for bulk density = {bd:.1f} g/cm³ and organic matter = {om:g}%"),
         hv.opts.Curve(xticks=texture_ticks, xrotation=45, ylim=(0, 10)),
         hv.opts.Area(xticks=texture_ticks, xrotation=45, ylim=(0, 10)),
     )
