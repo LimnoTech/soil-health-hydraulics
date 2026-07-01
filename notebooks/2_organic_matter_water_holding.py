@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.19.3
+#       jupytext_version: 1.19.4
 #   kernelspec:
 #     display_name: default
 #     language: python
@@ -17,8 +17,8 @@
 # # Organic-matter effects on soil water holding
 #
 # Organic matter and bulk density are the two soil properties practitioners can most directly
-# influence through management. This notebook shows how increasing organic matter and
-# decompaction shifts water into **plant-available storage** (field capacity − wilting point)
+# influence through management. This notebook shows how increasing organic matter — and easing
+# compaction — shifts water into **plant-available storage** (field capacity − wilting point)
 # and **drainable storage** (saturation − field capacity), the fast-draining pore space that
 # matters most for stormwater infiltration and detention. Gains are largest in coarse-textured
 # soils and diminish in clays.
@@ -172,8 +172,8 @@ else:
 # as you add organic matter and adjust compaction across all 12 USDA texture classes.
 # Use the **bulk density slider** to represent compaction (higher = more compacted) and the
 # **organic matter slider** to explore realistic management scenarios. The low-BD + high-OM
-# region represents a healthy, well-structured soil; the high-BD + low-OM region represents a compacted,
-# depleted soil. Greyed texture columns mark physically implausible BD × OM combinations.
+# corner represents a healthy, well-structured soil; the high-BD + low-OM corner a compacted,
+# depleted one. Greyed texture columns mark physically implausible BD × OM combinations.
 #
 # ::: {.callout-note collapse="true"}
 # ## For researchers: Minasny & McBratney slopes, blend method, and caveats
@@ -212,8 +212,8 @@ else:
 # line in the line plots marks `OC_base(BD)` and moves with the BD slider.
 # (2) The BD and OC sliders
 # are **independent "what-if" axes**; in reality organic matter *lowers* bulk density (the
-# low-BD ↔ high-OC diagonal is the realistic region), and a low-BD + high-OC region double-counts
-# porosity, so don't read the extreme corners of the graph as coupled predictions. (3) The modifier is
+# low-BD ↔ high-OC diagonal is the realistic region), and a low-BD + high-OC corner double-counts
+# porosity, so don't read the extreme corners as coupled predictions. (3) The modifier is
 # **linear**, whereas Minasny & McBratney found diminishing returns (largest gains 0→1 % OC), so it may overstate
 # gains at high OC; their data span OC < 10 %. (4) OM ≈ OC / 0.58 (van Bemmelen); the line-plot OC
 # axis is capped at 5 % (≈ 8.6 % OM) and the diagram's OM slider spans 0–8 %. (5) In the diagram,
@@ -389,9 +389,9 @@ def _blend_figure(bd, om):
     )
     return ov.opts(
         hv.opts.Overlay(width=720, height=520, toolbar="right", legend_position="top_left",
-                        xlabel="texture class (hydrologic soil group); coarse → fine",
+                        xlabel="Texture class (Hydrologic Soil Group); coarse → fine",
                         ylabel="Water Storage Capacity (inches per foot of soil depth)",
-                        title=f"Soil water vs. texture for bulk density {bd:.1f} g/cm³ & organic matter {om:g}%"),
+                        title=f"Soil water vs. texture for bulk density = {bd:.1f} g/cm³ & organic matter = {om:g}%"),
         hv.opts.Curve(xticks=texture_ticks, xrotation=45, ylim=(0, 10)),
         hv.opts.Area(xticks=texture_ticks, xrotation=45, ylim=(0, 10)),
     )
