@@ -445,7 +445,7 @@ profiles.opts(
         width=820,
         height=520,
         legend_position="top_left",
-        xlabel="texture class (hydrologic soil group); coarse → fine",
+        xlabel="Texture class (Hydrologic Soil Group); coarse → fine",
         ylabel="Water Storage Capacity (inches per foot of soil depth)",
         title="Soil water vs. texture from ROSETTA for {dimensions}",
     ),
